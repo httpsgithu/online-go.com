@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,11 +16,11 @@
  */
 
 /* Inter tab communications library */
-import {comm_socket} from "sockets";
+import { socket } from "@/lib/sockets";
 
-let registrations = {};
+const registrations: { [event: string]: Array<(data: any) => void> } = {};
 
-comm_socket.on("itc", (obj) => {
+socket.on("itc", (obj) => {
     if (obj.event in registrations) {
         for (let i = 0; i < registrations[obj.event].length; ++i) {
             registrations[obj.event][i](obj.data);
@@ -29,13 +29,13 @@ comm_socket.on("itc", (obj) => {
 });
 
 export default {
-    register: (event, cb) => {
+    register: (event: string, cb: (data: any) => void) => {
         if (!(event in registrations)) {
             registrations[event] = [];
         }
         registrations[event].push(cb);
     },
-    send: (event, data) => {
-        comm_socket.send("itc", {"event": event, "data": data});
-    }
+    send: (event: string, data: any) => {
+        socket.send("itc", { event: event, data: data });
+    },
 };

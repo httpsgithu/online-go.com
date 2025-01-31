@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,12 +15,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { push_manager } from 'UIPush';
-import * as data from 'data';
-import { get } from 'requests';
-import ITC from 'ITC';
-import * as player_cache from 'player_cache';
-
+import { push_manager } from "@/components/UIPush";
+import * as data from "@/lib/data";
+import { get } from "@/lib/requests";
+import ITC from "@/lib/ITC";
+import * as player_cache from "@/lib/player_cache";
 
 /**
  * This is a set of keys to be used for data.get(..) and data.watch(..) calls.
@@ -28,34 +27,62 @@ import * as player_cache from 'player_cache';
  */
 
 function anon() {
-    let user = data.get('config.user');
+    const user = data.get("config.user");
     if (!user) {
         return true;
     }
     return user.anonymous;
 }
 
-export let cached = {
-    config: 'cached.config',
-    friends: 'cached.friends',
-    groups: 'cached.groups',
-    active_tournaments: 'cached.active_tournaments',
-    ladders: 'cached.ladders',
-    blocks: 'cached.blocks',
-    challenge_list: 'cached.challenge_list',
-    group_invitations: 'cached.group_invitations',
+let disable_refresh_callback_on_user_change = false;
+
+export const cached = {
+    config: "cached.config",
+    friends: "cached.friends",
+    groups: "cached.groups",
+    active_tournaments: "cached.active_tournaments",
+    ladders: "cached.ladders",
+    blocks: "cached.blocks",
+    challenge_list: "cached.challenge_list",
+    group_invitations: "cached.group_invitations",
 
     refresh: {
-        config: (cb?:() => void) => {
-            get('ui/config').then((config) => {
-                data.set(cached.config, config);
-                data.set('config', config);
-                if (cb) {
-                    cb();
-                }
-            }).catch((err) => {
-                console.error("Error retrieving friends list: ", err);
-            });
+        config: (cb?: () => void) => {
+            get("ui/config")
+                .then((config) => {
+                    if (config.banned) {
+                        data.set("appeals.banned_user_id", config.banned.banned_user_id);
+                        data.set("appeals.jwt", config.banned.jwt);
+                        data.set("appeals.ban-reason", config.banned.ban_reason);
+                        /*
+                        if (window.location.pathname !== "/appeal") {
+                            window.location.pathname = "/appeal";
+                        }
+                        */
+                        return;
+                    } else if (!config.user?.anonymous) {
+                        data.remove("appeals.banned_user_id");
+                        data.remove("appeals.jwt");
+                        data.remove("appeals.ban-reason");
+                    }
+
+                    disable_refresh_callback_on_user_change = true;
+                    try {
+                        data.set(cached.config, config);
+                        data.set("user", config.user);
+                        data.set("config.user", config.user);
+                        data.set("config", config);
+                        if (cb) {
+                            cb();
+                        }
+                    } catch {
+                        // ignore
+                    }
+                    disable_refresh_callback_on_user_change = false;
+                })
+                .catch((err) => {
+                    console.error("Error retrieving friends list: ", err);
+                });
         },
 
         challenge_list: () => {
@@ -64,16 +91,20 @@ export let cached = {
                 return;
             }
 
-            get("me/challenges", {page_size: 30}).then((res) => {
-                for (let challenge of res.results) {
-                    player_cache.update(challenge.challenger);
-                    player_cache.update(challenge.challenged);
-                    challenge.game.time_control = JSON.parse(challenge.game.time_control_parameters);
-                }
-                data.set(cached.challenge_list, res.results);
-            }).catch((err) => {
-                console.error("Error retrieving challenge list: ", err);
-            });
+            get("me/challenges", { page_size: 30 })
+                .then((res) => {
+                    for (const challenge of res.results) {
+                        player_cache.update(challenge.challenger);
+                        player_cache.update(challenge.challenged);
+                        challenge.game.time_control = JSON.parse(
+                            challenge.game.time_control_parameters,
+                        );
+                    }
+                    data.set(cached.challenge_list, res.results);
+                })
+                .catch((err) => {
+                    console.error("Error retrieving challenge list: ", err);
+                });
         },
 
         group_invitations: () => {
@@ -82,12 +113,17 @@ export let cached = {
                 return;
             }
 
-            get("me/groups/invitations", {page_size: 100}).then((res) => {
-                let invitations = res.results.filter(invite => invite.user === data.get('user').id && invite.is_invitation);
-                data.set(cached.group_invitations, invitations);
-            }).catch((err) => {
-                console.error("Error retrieving group invitation list: ", err);
-            });
+            get("me/groups/invitations", { page_size: 100 })
+                .then((res) => {
+                    const invitations = res.results.filter(
+                        (invite: any) =>
+                            invite.user === data.get("user")?.id && invite.is_invitation,
+                    );
+                    data.set(cached.group_invitations, invitations);
+                })
+                .catch((err) => {
+                    console.error("Error retrieving group invitation list: ", err);
+                });
         },
 
         friends: () => {
@@ -96,11 +132,13 @@ export let cached = {
                 return;
             }
 
-            get('ui/friends').then((res) => {
-                data.set(cached.friends, res.friends);
-            }).catch((err) => {
-                console.error("Error retrieving friends list: ", err);
-            });
+            get("ui/friends")
+                .then((res) => {
+                    data.set(cached.friends, res.friends);
+                })
+                .catch((err) => {
+                    console.error("Error retrieving friends list: ", err);
+                });
         },
 
         groups: () => {
@@ -109,13 +147,17 @@ export let cached = {
                 return;
             }
 
-            get('me/groups', {page_size: 100}).then((res) => {
-                let groups = res.results;
-                groups.sort((a, b) => a.name.localeCompare(b.name));
-                data.set(cached.groups, groups);
-            }).catch((err) => {
-                console.error("Error retrieving groups: ", err);
-            });
+            get("me/groups", { page_size: 100 })
+                .then((res) => {
+                    const groups = res.results;
+                    groups.sort((a: { name: string }, b: { name: string }) =>
+                        a.name.localeCompare(b.name),
+                    );
+                    data.set(cached.groups, groups);
+                })
+                .catch((err) => {
+                    console.error("Error retrieving groups: ", err);
+                });
         },
 
         active_tournaments: () => {
@@ -124,13 +166,15 @@ export let cached = {
                 return;
             }
 
-            get('me/tournaments', {ended__isnull: true, page_size: 100}).then((res) => {
-                let tournaments = res.results;
-                tournaments.sort((a, b) => a.name.localeCompare(b.name));
-                data.set(cached.active_tournaments, tournaments);
-            }).catch((err) => {
-                console.error("Error retrieving active tournaments: ", err);
-            });
+            get("me/tournaments", { ended__isnull: true, page_size: 100 })
+                .then((res) => {
+                    const tournaments = res.results;
+                    tournaments.sort((a: any, b: any) => a.name.localeCompare(b.name));
+                    data.set(cached.active_tournaments, tournaments);
+                })
+                .catch((err) => {
+                    console.error("Error retrieving active tournaments: ", err);
+                });
         },
 
         ladders: () => {
@@ -139,14 +183,15 @@ export let cached = {
                 return;
             }
 
-            get('me/ladders').then((res) => {
-                let ladders = res.results;
-                ladders.sort((a, b) => a.name.localeCompare(b.name));
-                data.set(cached.ladders, ladders);
-            }).catch((err) => {
-                console.error("Error retrieving ladders: ", err);
-            });
-
+            get("me/ladders")
+                .then((res) => {
+                    const ladders = res.results;
+                    ladders.sort((a: any, b: any) => a.name.localeCompare(b.name));
+                    data.set(cached.ladders, ladders);
+                })
+                .catch((err) => {
+                    console.error("Error retrieving ladders: ", err);
+                });
         },
 
         blocks: () => {
@@ -156,48 +201,53 @@ export let cached = {
             }
 
             get("me/blocks")
-            .then((blocks) => {
-                data.set(cached.blocks, blocks);
-            }).catch((err) => {
-                console.error("Error retrieving block list: ", err);
-            });
+                .then((blocks) => {
+                    data.set(cached.blocks, blocks);
+                })
+                .catch((err) => {
+                    console.error("Error retrieving block list: ", err);
+                });
         },
+    },
+} as const;
 
+let current_user_id = 0;
+let refresh_debounce: ReturnType<typeof setTimeout> | null = setTimeout(refresh_all, 10);
+// return type of setTimeout
 
-    }
-};
-
-
-let current_user_id:number = 0;
-let refresh_debounce = setTimeout(refresh_all, 10);
 function refresh_all() {
     refresh_debounce = null;
     cached.refresh.config();
 
-    for (let k in cached.refresh) {
-        if (k !== 'config') {
-            cached.refresh[k]();
+    for (const k in cached.refresh) {
+        if (k !== "config") {
+            (cached.refresh as any)[k]();
         }
     }
 }
 
-data.watch('user', (user) => {
+data.watch("user", (user) => {
+    if (!user) {
+        return;
+    }
+
     if (user.id !== current_user_id) {
         current_user_id = user.id;
         if (refresh_debounce) {
-        clearTimeout(refresh_debounce);
+            clearTimeout(refresh_debounce);
         }
-        refresh_debounce = setTimeout(refresh_all, 10);
+        if (!disable_refresh_callback_on_user_change) {
+            refresh_debounce = setTimeout(refresh_all, 10);
+        }
     }
 });
 
-push_manager.on('update-friend-list', cached.refresh.friends);
-push_manager.on('challenge-list-updated', cached.refresh.challenge_list);
-push_manager.on('update-groups', cached.refresh.groups);
-push_manager.on('update-groups', cached.refresh.group_invitations);
-push_manager.on('update-tournaments', cached.refresh.active_tournaments);
+push_manager.on("update-friend-list", cached.refresh.friends);
+push_manager.on("challenge-list-updated", cached.refresh.challenge_list);
+push_manager.on("update-groups", cached.refresh.groups);
+push_manager.on("update-groups", cached.refresh.group_invitations);
+push_manager.on("update-tournaments", cached.refresh.active_tournaments);
 
 ITC.register("update-blocks", cached.refresh.blocks);
-
 
 export default cached;

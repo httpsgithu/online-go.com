@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -20,19 +20,29 @@ import * as React from "react";
 interface LoadingProps {
     large?: boolean;
     small?: boolean;
+    slow?: boolean;
 }
 
-export function Loading(props: LoadingProps):JSX.Element {
+// This shenanigans is to allow the caller to select classes via props.
+// if there's a better way, please do tell :)
+export function Loading(props: LoadingProps): React.ReactElement {
     return (
-        <span className={'Loading' + (props.small ? ' small' : '') + (props.large ? ' large' : '')}>
-            <span className='loading-spinner' />
+        <span
+            className={
+                "Loading" +
+                (props.small ? " small" : "") +
+                (props.large ? " large" : "") +
+                (props.slow ? " slow" : "")
+            }
+        >
+            <span className="loading-spinner" />
         </span>
     );
 }
 
-export function LoadingPage(props: LoadingProps):JSX.Element {
+export function LoadingPage(props: LoadingProps): React.ReactElement {
     return (
-        <span className='LoadingPage'>
+        <span className="LoadingPage">
             <Loading {...props} />
         </span>
     );

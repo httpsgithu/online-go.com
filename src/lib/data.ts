@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -71,7 +71,7 @@
  *   values for replication:
  *
  *      Replication.NONE
- *          No replication is performed. This is the same as not passing this paramter.
+ *          No replication is performed. This is the same as not passing this parameter.
  *
  *          When to use: When you don't want the value replicated to other devices
  *
@@ -97,27 +97,34 @@
  *
  */
 
+import { TypedEventEmitter } from "@/lib/TypedEventEmitter";
+import { DataSchema } from "@/lib/data_schema";
+import { protocol } from "goban";
 
-import { TypedEventEmitter } from 'TypedEventEmitter';
-import { GroupList, ActiveTournamentList } from './types';
-
-interface Events {
-    [name:string]: any;
+interface DataEvents {
+    remote_data_sync_complete: never;
 }
+
+export const events = new TypedEventEmitter<DataEvents>();
 
 export enum Replication {
-    NONE                    = 0x0, // No replication of this change
+    NONE = 0x0, // No replication of this change
     LOCAL_OVERWRITES_REMOTE = 0x1, // Locally set data will overwrite remotely set data, but if not set will default to remotely set data
     REMOTE_OVERWRITES_LOCAL = 0x2, // Remotely set data will overwrite locally set data
-    REMOTE_ONLY             = 0x4, // Remotely set data, but do not update our local value
+    REMOTE_ONLY = 0x4, // Remotely set data, but do not update our local value
 }
 
-let defaults = {};
-let store = {};
-let event_emitter = new TypedEventEmitter<Events>();
+const defaults: Partial<DataSchema> = {};
+const store: Partial<DataSchema> = {};
 
+const event_emitter = new TypedEventEmitter<DataSchema>();
 
-export function setWithoutEmit(key: string, value: any | undefined): any {
+//  Note that as well as "without emit", this is "without remote storage" as well.
+// (you cant set-remote-storage-without-emit)
+export function setWithoutEmit<KeyT extends Extract<keyof DataSchema, string>>(
+    key: KeyT,
+    value: DataSchema[KeyT] | undefined,
+): DataSchema[KeyT] | undefined {
     if (value === undefined) {
         remove(key);
         return value;
@@ -129,7 +136,11 @@ export function setWithoutEmit(key: string, value: any | undefined): any {
     return value;
 }
 
-export function set(key: string, value: any | undefined, replication?: Replication): any {
+export function set<KeyT extends Extract<keyof DataSchema, string>>(
+    key: KeyT,
+    value: DataSchema[KeyT] | undefined,
+    replication?: Replication,
+): typeof value {
     if (replication !== Replication.REMOTE_ONLY) {
         setWithoutEmit(key, value);
     }
@@ -140,11 +151,14 @@ export function set(key: string, value: any | undefined, replication?: Replicati
     return value;
 }
 
-function emitForKey(key: string): void {
+function emitForKey<KeyT extends Extract<keyof DataSchema, string>>(key: KeyT): void {
     event_emitter.emit(key, get(key));
 }
 
-export function setDefault(key: string, value: any): any {
+export function setDefault<KeyT extends Extract<keyof DataSchema, string>>(
+    key: KeyT,
+    value: DataSchema[KeyT],
+): DataSchema[KeyT] {
     defaults[key] = value;
     if (!(key in store) && !(key in remote_store)) {
         event_emitter.emit(key, value);
@@ -152,7 +166,10 @@ export function setDefault(key: string, value: any): any {
     return value;
 }
 
-export function remove(key: string, replication?: Replication): void {
+export function remove<KeyT extends Extract<keyof DataSchema, string>>(
+    key: KeyT,
+    replication?: Replication,
+): void {
     if (replication && store["config.user"] && !store["config.user"].anonymous) {
         remote_remove(key, replication);
     }
@@ -165,27 +182,27 @@ export function remove(key: string, replication?: Replication): void {
 }
 
 export function removePrefix(key_prefix: string): any {
-    let hits = {};
+    const hits: Partial<DataSchema> = {};
 
     Object.keys(store).map((key) => {
         if (key.indexOf(key_prefix) === 0) {
-            hits[key] = key;
+            hits[key as keyof DataSchema] = key;
         }
     });
 
-    for (let key in hits) {
+    for (const key in hits) {
         safeLocalStorageRemove(`ogs.${key}`);
-        delete store[key];
-        emitForKey(key);
+        delete store[key as keyof DataSchema];
+        emitForKey(key as keyof DataSchema);
     }
 }
 
 export function removeAll(): void {
-    let keys = [];
-    for (let key in store) {
-        keys.push(key);
+    const keys: (keyof DataSchema)[] = [];
+    for (const key in store) {
+        keys.push(key as keyof DataSchema);
     }
-    for (let key of keys) {
+    for (const key of keys) {
         try {
             remove(key);
         } catch (e) {
@@ -194,38 +211,52 @@ export function removeAll(): void {
     }
 }
 
-export function get(key: "cached.groups", default_value?: GroupList): GroupList;
-export function get(key: "cached.active_tournaments", default_value?: ActiveTournamentList): ActiveTournamentList;
-export function get(key: string, default_value?: any): any | undefined;
-export function get(key, default_value?): any | undefined {
+export function get(key: "user"): DataSchema["user"];
+export function get<KeyT extends Extract<keyof DataSchema, string>>(
+    key: KeyT,
+): DataSchema[KeyT] | undefined;
+export function get<KeyT extends Extract<keyof DataSchema, string>>(
+    key: KeyT,
+    default_value: DataSchema[KeyT],
+): DataSchema[KeyT];
+export function get<KeyT extends Extract<keyof DataSchema, string>>(
+    key: KeyT | "user",
+    default_value?: undefined | DataSchema[KeyT],
+): DataSchema[KeyT] | DataSchema["user"] | undefined {
     if (key in store) {
-        return store[key];
+        return store[key] as DataSchema[KeyT];
     }
     if (remote_get(key)) {
-        return remote_get(key);
+        return remote_get(key) as DataSchema[KeyT];
     }
     if (key in defaults) {
-        return defaults[key];
+        return defaults[key] as DataSchema[KeyT];
     }
     return default_value;
 }
 
-export function watch(key: "cached.groups", cb: (data: GroupList) => void, call_on_undefined?: boolean, dont_call_immediately?: boolean): void;
-export function watch(key: "cached.active_tournaments", cb: (data: ActiveTournamentList) => void, call_on_undefined?: boolean, dont_call_immediately?: boolean): void;
-export function watch(key: string, cb: (data: any) => void, call_on_undefined?: boolean, dont_call_immediately?: boolean): void;
-export function watch(key, cb, call_on_undefined?: boolean, dont_call_immediately?: boolean): void {
+export function watch<KeyT extends Extract<keyof DataSchema, string>>(
+    key: KeyT,
+    cb: (data: DataSchema[KeyT] | undefined) => void,
+    call_on_undefined?: boolean,
+    dont_call_immediately?: boolean,
+): void {
     event_emitter.on(key, cb);
 
-    let val = get(key);
+    const val = get(key);
+
+    // The != can possibly be changed to !==, but I don't want to touch it
+    // without further investigation.
+    // eslint-disable-next-line eqeqeq
     if (!dont_call_immediately && (val != undefined || call_on_undefined)) {
         cb(val);
     }
 }
 
-export function unwatch(key: "cached.groups", cb: (data: GroupList) => void): void;
-export function unwatch(key: "cached.active_tournaments", cb: (data: ActiveTournamentList) => void): void;
-export function unwatch(key: string, cb: (data: any) => void): void;
-export function unwatch(key, cb): void {
+export function unwatch<KeyT extends Extract<keyof DataSchema, string>>(
+    key: KeyT,
+    cb: (data: DataSchema[KeyT] | undefined) => void,
+): void {
     event_emitter.off(key, cb);
 }
 
@@ -233,73 +264,86 @@ export function dump(key_prefix: string = "", strip_prefix?: boolean) {
     if (!key_prefix) {
         key_prefix = "";
     }
-    let ret = {};
-    let remote_values = {};
-    for (let k in remote_store) {
-        remote_values[k] = remote_store[k].value;
+    const ret: any = {};
+    const remote_values: any = {};
+    for (const k in remote_store) {
+        remote_values[k] = remote_store[k as keyof DataSchema]?.value;
     }
-    let data = Object.assign({}, defaults, remote_values, store);
-    let keys = Object.keys(data);
+    const data = Object.assign({}, defaults, remote_values, store);
+    const keys = Object.keys(data);
 
-    keys.sort().map((key) => {
+    keys.sort().map((key: string) => {
         if (key.indexOf(key_prefix) === 0) {
-            let k = strip_prefix ? key.substr(key_prefix.length) : key;
-            ret[k] = {"union": data[key], value: store[key], "default": defaults[key], remote: remote_get(key)};
+            const k = strip_prefix ? key.substr(key_prefix.length) : key;
+            ret[k] = {
+                union: data[key],
+                value: store[key as keyof DataSchema],
+                default: defaults[key as keyof DataSchema],
+                remote: remote_get(key as keyof DataSchema),
+            };
         }
     });
     console.table(ret);
 }
 
-export function getPrefix(key_prefix:string = "", strip_prefix?: boolean):{[key:string]: any} {
+export function getPrefix(key_prefix: string = "", strip_prefix?: boolean): { [key: string]: any } {
     if (!key_prefix) {
         key_prefix = "";
     }
-    let ret = {};
-    let remote_values = {};
-    for (let k in remote_store) {
-        remote_values[k] = remote_store[k].value;
+    const ret: any = {};
+    const remote_values: any = {};
+    for (const k in remote_store) {
+        remote_values[k] = remote_store[k as keyof DataSchema]?.value;
     }
-    let data = Object.assign({}, defaults, remote_values, store);
-    let keys = Object.keys(data);
+    const data = Object.assign({}, defaults, remote_values, store);
+    const keys = Object.keys(data);
 
     keys.sort().map((key) => {
         if (key.indexOf(key_prefix) === 0) {
-            let k = strip_prefix ? key.substr(key_prefix.length) : key;
+            const k = strip_prefix ? key.substr(key_prefix.length) : key;
             ret[k] = data[key];
         }
     });
     return ret;
 }
 
-function safeLocalStorageSet(key, value) {
+function safeLocalStorageSet(key: string, value: any) {
     try {
         localStorage.setItem(key, value);
-    } catch (e) {
-        console.warn(`Failed to save setting ${key}, LocalStorage is probably disabled. If you are using Safari, the most likely cause of this is being in Private Browsing Mode.`);
+    } catch {
+        console.warn(
+            `Failed to save setting ${key}, LocalStorage is probably disabled. If you are using Safari, the most likely cause of this is being in Private Browsing Mode.`,
+        );
     }
 }
 
-function safeLocalStorageRemove(key) {
+function safeLocalStorageRemove(key: string) {
     try {
         localStorage.removeItem(key);
-    } catch (e) {
-        console.warn(`Failed to remove ${key}, LocalStorage is probably disabled. If you are using Safari, the most likely cause of this is being in Private Browsing Mode.`);
+    } catch {
+        console.warn(
+            `Failed to remove ${key}, LocalStorage is probably disabled. If you are using Safari, the most likely cause of this is being in Private Browsing Mode.`,
+        );
     }
 }
 
-
 /* Load previously saved data from localStorage */
-
 try {
     for (let i = 0; i < localStorage.length; ++i) {
         let key = localStorage.key(i);
-        if (key.indexOf("ogs.") === 0) {
+        if (key?.indexOf("ogs.") === 0) {
             key = key.substr(4);
             try {
-                let item = localStorage.getItem(`ogs.${key}`);
-                store[key] = JSON.parse(item);
+                const item = localStorage.getItem(`ogs.${key}`);
+                if (item) {
+                    store[key as keyof DataSchema] = JSON.parse(item);
+                }
             } catch (e) {
-                console.error(`Data storage system failed to load ${key}. Value was: `, typeof(localStorage.getItem(`ogs.${key}`)), localStorage.getItem(`ogs.${key}`));
+                console.error(
+                    `Data storage system failed to load ${key}. Value was: `,
+                    typeof localStorage.getItem(`ogs.${key}`),
+                    localStorage.getItem(`ogs.${key}`),
+                );
                 console.error(e);
                 localStorage.removeItem(`ogs.${key}`);
             }
@@ -308,8 +352,6 @@ try {
 } catch (e) {
     console.error(e);
 }
-
-
 
 /**********************/
 /*** REMOTE STORAGE ***/
@@ -336,11 +378,15 @@ try {
  * only updated data will be downloaded.
  */
 
+import ITC from "@/lib/ITC";
+import { socket } from "@/lib/sockets";
 
-import ITC from 'ITC';
-import { termination_socket } from 'sockets';
-
-type RemoteStorableValue = number | string | boolean | undefined | {[key:string]: RemoteStorableValue};
+type RemoteStorableValue =
+    | number
+    | string
+    | boolean
+    | undefined
+    | { [key: string]: RemoteStorableValue };
 
 interface RemoteKV {
     key: string;
@@ -349,17 +395,20 @@ interface RemoteKV {
     modified?: string;
 }
 
-let remote_store:{[key:string]: RemoteKV} = {};
-let wal:{[key:string]: {key: string, value?: any, replication: Replication}} = {};
-let wal_currently_processing:{[k:string]: boolean} = {};
-let last_modified:string = "2000-01-01T00:00:00.000Z";
-let loaded_user_id:number | null = null; // user id we've currently loaded data for
+let remote_store: { [key in keyof DataSchema]?: RemoteKV } = {};
+let wal: { [key: string]: { key: string; value?: any; replication: Replication } } = {};
+let wal_currently_processing: { [k: string]: boolean } = {};
+let last_modified = "2000-01-01T00:00:00.000Z";
+let loaded_user_id: number | null = null; // user id we've currently loaded data for
 
-
-function remote_set(key:string, value:RemoteStorableValue, replication: Replication):void {
-    let user = store["config.user"];
+function remote_set(
+    key: keyof DataSchema,
+    value: RemoteStorableValue,
+    replication: Replication,
+): void {
+    const user = store["config.user"];
     if (!user || user.anonymous) {
-        throw new Error('user is not authenticated');
+        throw new Error("user is not authenticated");
     }
 
     if (remote_store[key]?.value === value && remote_store[key]?.replication === replication) {
@@ -368,13 +417,16 @@ function remote_set(key:string, value:RemoteStorableValue, replication: Replicat
 
     remote_store[key] = { key, value, replication };
     _enqueue_set(user.id, key, value, replication);
-    safeLocalStorageSet(`ogs-remote-storage-store.${user.id}.${key}`, JSON.stringify(remote_store[key]));
+    safeLocalStorageSet(
+        `ogs-remote-storage-store.${user.id}.${key}`,
+        JSON.stringify(remote_store[key]),
+    );
 }
 
-function remote_remove(key:string, replication: Replication):void {
-    let user = store["config.user"];
+function remote_remove(key: keyof DataSchema, replication: Replication): void {
+    const user = store["config.user"];
     if (!user || user.anonymous) {
-        throw new Error('user is not authenticated');
+        throw new Error("user is not authenticated");
     }
 
     if (remote_get(key) === undefined) {
@@ -386,8 +438,8 @@ function remote_remove(key:string, replication: Replication):void {
     safeLocalStorageRemove(`ogs-remote-storage-store.${user.id}.${key}`);
 }
 
-function remote_get(key:string):RemoteStorableValue {
-    let user = store["config.user"];
+function remote_get(key: keyof DataSchema): RemoteStorableValue {
+    const user = store["config.user"];
     if (!user || user.anonymous) {
         return undefined;
     }
@@ -395,29 +447,32 @@ function remote_get(key:string):RemoteStorableValue {
     return remote_store[key]?.value;
 }
 
-
 // Our write ahead log ensures that if we have a connection problem while we
 // are writing a value to our remote storage, we retry when we re-establish
 // our connection. This is a "last to write wins" system.
 
-function _enqueue_set(user_id:number, key:string, value: RemoteStorableValue, replication: Replication):void {
-    let entry = {key, value, replication};
+function _enqueue_set(
+    user_id: number,
+    key: string,
+    value: RemoteStorableValue,
+    replication: Replication,
+): void {
+    const entry = { key, value, replication };
     safeLocalStorageSet(`ogs-remote-storage-wal.${user_id}.${key}`, JSON.stringify(entry));
     wal[key] = entry;
     _process_write_ahead_log(user_id);
 }
 
-function _enqueue_remove(user_id:number, key:string, replication: Replication):void {
-    let entry = {key, replication};
+function _enqueue_remove(user_id: number, key: string, replication: Replication): void {
+    const entry = { key, replication };
     safeLocalStorageSet(`ogs-remote-storage-wal.${user_id}.${key}`, JSON.stringify(entry));
     wal[key] = entry;
     _process_write_ahead_log(user_id);
 }
 
-
-function _process_write_ahead_log(user_id:number):void {
-    for (let data_key in wal) {
-        let kv = wal[data_key];
+function _process_write_ahead_log(user_id: number): void {
+    for (const data_key in wal) {
+        const kv = wal[data_key];
 
         if (wal_currently_processing[kv.key]) {
             // already writing this key. We'll check when we return from our
@@ -427,10 +482,24 @@ function _process_write_ahead_log(user_id:number):void {
         }
 
         wal_currently_processing[kv.key] = true;
+        let cb_already_called = false;
 
-        let cb = (res) => {
+        const cb = (
+            res:
+                | { error?: string | undefined; retry?: boolean | undefined }
+                | { error?: undefined; success: true },
+        ) => {
+            /* I believe this might happen in some cases where the connection
+             * has reset, I'm not entirely sure though. anoek - 2024-01-10 */
+            if (cb_already_called) {
+                return;
+            }
+            cb_already_called = true;
+
             if (loaded_user_id !== user_id) {
-                console.warn("User changed while we were synchronizing our remote storage write ahead log, bailing from further updates.");
+                console.warn(
+                    "User changed while we were synchronizing our remote storage write ahead log, bailing from further updates.",
+                );
                 return;
             }
 
@@ -441,7 +510,10 @@ function _process_write_ahead_log(user_id:number):void {
                 // unexpected errors (internal exceptions) will set a retry flag, in which case
                 // we should retry this after a short while.
                 if (res.retry) {
-                    setTimeout(() => _process_write_ahead_log(user_id), 3000 + 3000 * Math.random());
+                    setTimeout(
+                        () => _process_write_ahead_log(user_id),
+                        3000 + 3000 * Math.random(),
+                    );
                     return;
                 }
                 // otherwise, this was an error such as we've set too many keys
@@ -449,6 +521,7 @@ function _process_write_ahead_log(user_id:number):void {
                 // just dump this attempt from our wal so the client doesn't
                 // keep trying to send updates to the server which will never
                 // succeed.
+                console.error("... couldn't retry!");
             }
 
             if (wal[data_key].value !== kv.value || wal[data_key].replication !== kv.replication) {
@@ -462,25 +535,39 @@ function _process_write_ahead_log(user_id:number):void {
             }
         };
 
-        if ('value' in kv) {
-            termination_socket.send('remote_storage/set', {key: kv.key, value: kv.value, replication: kv.replication}, cb);
+        if ("value" in kv) {
+            socket.send(
+                "remote_storage/set",
+                {
+                    key: kv.key,
+                    value: kv.value,
+                    replication: kv.replication as unknown as protocol.RemoteStorageReplication,
+                },
+                cb,
+            );
         } else {
-            termination_socket.send('remote_storage/remove', {key: kv.key, replication: kv.replication}, cb);
+            socket.send(
+                "remote_storage/remove",
+                {
+                    key: kv.key,
+                    replication: kv.replication as unknown as protocol.RemoteStorageReplication,
+                },
+                cb,
+            );
         }
     }
 }
 // When we get disconnected from the server, reset our write ahead processing state
 // so we retry everything that's in our wal when we reconnect
-termination_socket.on('disconnect', () => {
+socket.on("disconnect", () => {
     wal_currently_processing = {};
 });
-
 
 let currently_synchronizing = false;
 let need_another_synchronization_call = false;
 
 function remote_sync() {
-    let user = store['config.user'];
+    const user = store["config.user"];
     if (!user || user.anonymous) {
         return;
     }
@@ -493,32 +580,39 @@ function remote_sync() {
     currently_synchronizing = true;
     need_another_synchronization_call = false;
 
-    termination_socket.send('remote_storage/sync', last_modified, (ret) => {
-        if (ret.error) {
-            console.error(ret.error);
-        } else {
-            // success
-        }
-        currently_synchronizing = false;
-        if (need_another_synchronization_call) {
-            remote_sync();
-        }
-    });
+    socket.send(
+        "remote_storage/sync",
+        {
+            since: last_modified,
+        },
+        (ret) => {
+            if ("error" in ret && ret.error) {
+                console.error(ret.error);
+            } else {
+                // success
+            }
+            currently_synchronizing = false;
+            if (need_another_synchronization_call) {
+                remote_sync();
+            }
+        },
+    );
 }
 // When we get disconnected from the server, reset the our remote_sync state in the
 // event that we were mid-sync
-termination_socket.on('disconnect', () => {
+socket.on("disconnect", () => {
     currently_synchronizing = false;
     need_another_synchronization_call = false;
 });
 
-
 // we'll get this when a client updates a value. We'll then send a request to the
 // server for any new updates since the last update we got.
-ITC.register('remote_storage/sync_needed', () => {
-    let user = store['config.user'];
+ITC.register("remote_storage/sync_needed", () => {
+    const user = store["config.user"];
     if (!user || user.anonymous) {
-        console.error("User is not logged in but received remote_storage/sync_needed for some reason, ignoring");
+        console.error(
+            "User is not logged in but received remote_storage/sync_needed for some reason, ignoring",
+        );
         return;
     }
 
@@ -527,20 +621,24 @@ ITC.register('remote_storage/sync_needed', () => {
 
 // After we've sent a synchronization request, we'll get these update messages
 // for each key that's been updated since the timestamp we sent
-termination_socket.on('remote_storage/update', (row:RemoteKV) => {
-    let user = store['config.user'];
+socket.on("remote_storage/update", (row) => {
+    const user = store["config.user"];
+
     if (!user || user.anonymous) {
-        console.error("User is not logged in but received remote_storage/update for some reason, ignoring");
+        console.error(
+            "User is not logged in but received remote_storage/update for some reason, ignoring",
+        );
         return;
     }
 
-    let current_data_value = get(row.key);
+    const current_data_value = get(row.key as keyof DataSchema);
 
-    if (row.replication === Replication.REMOTE_OVERWRITES_LOCAL) {
-        setWithoutEmit(row.key, row.value);
+    const replication_mode: Replication = row.replication as any;
+    if (replication_mode === Replication.REMOTE_OVERWRITES_LOCAL) {
+        setWithoutEmit(row.key as keyof DataSchema, row.value);
     }
 
-    remote_store[row.key] = row;
+    (remote_store as any)[row.key] = row;
     safeLocalStorageSet(`ogs-remote-storage-store.${user.id}.${row.key}`, JSON.stringify(row));
 
     if (last_modified < row.modified) {
@@ -548,16 +646,20 @@ termination_socket.on('remote_storage/update', (row:RemoteKV) => {
         last_modified = row.modified;
     }
 
-    if (get(row.key) !== current_data_value) {
+    if (get(row.key as keyof DataSchema) !== current_data_value) {
         // if our having updated locally changes what get
         // evaluates to, emit an update for that data key
-        emitForKey(row.key);
+        emitForKey(row.key as keyof DataSchema);
     }
 });
 
+socket.on("remote_storage/sync_complete", () => {
+    events.emit("remote_data_sync_complete");
+});
+
 // Whenever we connect to the server, process anything pending in our WAL and synchronize
-termination_socket.on('connect', () => {
-    let user = store['config.user'];
+socket.on("connect", () => {
+    const user = store["config.user"];
     if (!user || user.anonymous) {
         return;
     }
@@ -570,9 +672,8 @@ termination_socket.on('connect', () => {
     }, 1);
 });
 
-
 function load_from_local_storage_and_sync() {
-    let user = store['config.user'];
+    const user = store["config.user"];
     if (!user || user.anonymous) {
         return;
     }
@@ -593,38 +694,58 @@ function load_from_local_storage_and_sync() {
         const last_modified_key = `ogs-remote-storage-last-modified.${user.id}`;
 
         for (let i = 0; i < localStorage.length; ++i) {
-            let full_key = localStorage.key(i);
+            const full_key = localStorage.key(i);
 
-            if (full_key.indexOf(store_prefix) === 0) {
-                let key = full_key.substr(store_prefix.length);
+            if (full_key?.indexOf(store_prefix) === 0) {
+                const key = full_key.substr(store_prefix.length) as keyof DataSchema;
                 try {
-                    remote_store[key] = JSON.parse(localStorage.getItem(full_key)) as RemoteKV;
+                    remote_store[key] = JSON.parse(
+                        localStorage.getItem(full_key) as string,
+                    ) as RemoteKV;
+                    if (remote_store[key]?.replication === Replication.REMOTE_OVERWRITES_LOCAL) {
+                        store[key] = remote_store[key]?.value;
+                        emitForKey(key as keyof DataSchema);
+                    }
                 } catch (e) {
                     console.error(`Error loading remote storage key ${full_key}, removing`, e);
                     localStorage.removeItem(full_key);
                 }
             }
-            if (full_key.indexOf(wal_prefix) === 0) {
-                let key = full_key.substr(wal_prefix.length);
+            if (full_key?.indexOf(wal_prefix) === 0) {
+                const key = full_key.substr(wal_prefix.length);
                 try {
-                    wal[key] = JSON.parse(localStorage.getItem(full_key));
+                    wal[key] = JSON.parse(localStorage.getItem(full_key) as string);
                 } catch (e) {
                     console.error(`Error loading WAL key ${full_key}, removing`, e);
                     localStorage.removeItem(full_key);
                 }
             }
             if (full_key === last_modified_key) {
-                last_modified = localStorage.getItem(full_key);
+                last_modified = localStorage.getItem(full_key) as string;
             }
         }
     } catch (e) {
         console.error(e);
     }
 
-    _process_write_ahead_log(user.id);
-    remote_sync();
+    if (socket.connected) {
+        // we do a sync when we connect to the server, so we don't need to
+        // worry about syncing again here.
+        _process_write_ahead_log(user.id);
+        remote_sync();
+    }
 }
 
+// Here we load from local storage but don't actually sync because we're not connected yet
 
-load_from_local_storage_and_sync();
-watch('config.user', load_from_local_storage_and_sync);
+// The sync comes later when the socket connects.
+
+// We don't call immediately, because we need to wait till main.tsx has loaded the correct config from cached.config
+// (until that happens, the `config` values in local storage are for the prior user)
+
+watch(
+    "user",
+    load_from_local_storage_and_sync,
+    /* call on undefined */ false,
+    /* don't call immediately */ true,
+);

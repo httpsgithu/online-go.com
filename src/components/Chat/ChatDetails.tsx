@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,13 +16,16 @@
  */
 
 import * as React from "react";
-import {browserHistory} from "ogsHistory";
-import {_, pgettext} from "translate";
-import {shouldOpenNewTab} from "misc";
-import {close_all_popovers} from "popover";
-import {close_friend_list} from "FriendList/FriendIndicator";
-import * as data from "data";
-import { getUnreadChatPreference, getMentionedChatPreference, watchChatSubscriptionChanged, unwatchChatSubscriptionChanged } from "Chat";
+import { pgettext } from "@/lib/translate";
+import { close_all_popovers } from "@/lib/popover";
+import { close_friend_list } from "@/components/FriendList/close_friend_list";
+import * as data from "@/lib/data";
+import {
+    getUnreadChatPreference,
+    getMentionedChatPreference,
+    watchChatSubscriptionChanged,
+    unwatchChatSubscriptionChanged,
+} from "./state";
 
 interface ChatDetailsProperties {
     chatChannelId: string;
@@ -30,138 +33,149 @@ interface ChatDetailsProperties {
     subscribable?: boolean;
 }
 
+export function ChatDetails(props: ChatDetailsProperties): React.ReactElement {
+    const channel = props.chatChannelId;
 
-export class ChatDetails extends React.PureComponent<ChatDetailsProperties, any> {
-    constructor(props) {
-        super(props);
-        let channel = this.props.chatChannelId;
-        if (channel) {
-            this.state = {
-                channelId: channel,
-                subscribable: props.subscribable,
-                notify_unread: false,
-                notify_mentioned: false
-            };
-        }
-    }
+    const [channelId, setChannelId] = React.useState(channel);
+    const [subscribable, setSubscribable] = React.useState(props.subscribable);
+    const [notify_unread, setNotifyUnread] = React.useState(false);
+    const [notify_mentioned, setNotifyMentioned] = React.useState(false);
 
-    componentDidMount() {
-        watchChatSubscriptionChanged(this.onChatSubscriptionChanged);
-    }
+    React.useEffect(() => {
+        setChannelId(channel);
+        setSubscribable(props.subscribable);
+        setNotifyUnread(getUnreadChatPreference(channel));
+        setNotifyMentioned(getMentionedChatPreference(channel));
 
-    componentWillUnmount() {
-        unwatchChatSubscriptionChanged(this.onChatSubscriptionChanged);
-    }
+        const onChatSubscriptionChanged = () => {
+            setNotifyUnread(getUnreadChatPreference(channel));
+            setNotifyMentioned(getMentionedChatPreference(channel));
+        };
 
-    onChatSubscriptionChanged = () => {
-        this.setState({
-            notify_unread: getUnreadChatPreference(this.state.channelId),
-            notify_mentioned: getMentionedChatPreference(this.state.channelId)
-        });
-    }
+        watchChatSubscriptionChanged(onChatSubscriptionChanged);
+        return () => {
+            unwatchChatSubscriptionChanged(onChatSubscriptionChanged);
+        };
+    }, [channel, props.subscribable]);
 
-    close_all_modals_and_popovers = () => {
+    const close_all_modals_and_popovers = () => {
         close_all_popovers();
         close_friend_list();
-    }
+    };
 
-    leave = (_ev) => {
-        let c = this.state.channelId;
-        this.props.partFunc(c, false, false);
-        this.close_all_modals_and_popovers();
-    }
-    goToGroup = (ev) => {
-        this.close_all_modals_and_popovers();
+    const leave = () => {
+        const c = channelId;
+        props.partFunc(c, false, false);
+        close_all_modals_and_popovers();
+    };
 
-        let url: string = '/group/' + this.state.channelId.slice(6);
-        if (shouldOpenNewTab(ev)) {
-            window.open(url, "_blank");
-        } else {
-            browserHistory.push(url);
-        }
-    }
-    goToTournament = (ev) => {
-        this.close_all_modals_and_popovers();
-
-        let url: string = '/tournament/' + this.state.channelId.slice(11);
-        if (shouldOpenNewTab(ev)) {
-            window.open(url, "_blank");
-        } else {
-            browserHistory.push(url);
-        }
-    }
-
-    toggleNewMessageNotification = (ev) => {
-        let n_list: {[channel:string]: {[option: string]: Boolean}} = data.get("chat-indicator.chat-subscriptions", {});
-        if (!(this.state.channelId in n_list)) {
-            n_list[this.state.channelId] = {};
-        }
-        if (this.state.notify_unread) {
-            n_list[this.state.channelId].unread = false;
-        } else {
-            n_list[this.state.channelId].unread = true;
-        }
-        data.set("chat-indicator.chat-subscriptions", n_list);
-    }
-
-    toggleMentionNotification = (ev) => {
-        let n_list: {[channel:string]: {[option: string]: Boolean}} = data.get("chat-indicator.chat-subscriptions", {});
-        if (!(this.state.channelId in n_list)) {
-            n_list[this.state.channelId] = {};
-        }
-        if (this.state.notify_mentioned) {
-            n_list[this.state.channelId].mentioned = false;
-        } else {
-            n_list[this.state.channelId].mentioned = true;
-        }
-        data.set("chat-indicator.chat-subscriptions", n_list);
-    }
-
-    render() {
-        let group_text = pgettext("Go to the main page for this group.", "Group Page");
-        let tournament_text = pgettext("Go to the main page for this tournament.", "Tournament Page");
-        let leave_text = pgettext("Leave the selected channel.", "Leave Channel");
-
-        return (
-            <div className="ChatDetails">
-                <div className="actions">
-                    {this.state.channelId.startsWith("group") &&
-                        <button
-                            className="xs noshadow"
-                            onAuxClick={this.goToGroup}
-                            onClick={this.goToGroup}>
-                                <i className="fa fa-users"/>{" "}{group_text}
-                        </button>
-                    }
-                    {this.state.channelId.startsWith("tournament") &&
-                        <button
-                            className="xs noshadow"
-                            onAuxClick={this.goToTournament}
-                            onClick={this.goToTournament}>
-                                <i className="fa fa-trophy"/>{" "}{tournament_text}
-                        </button>
-                    }
-                    {this.state.subscribable &&
-                        <button
-                            className={"xs noshadow "}// + this.state.notify_mentioned ? "active" : "inactive"}
-                            onClick={this.toggleMentionNotification}>
-                                <i className="fa fa-comment" />{" " + (this.state.notify_mentioned ? _("unfollow mentioned") : _("follow mentioned"))}
-                        </button>
-                    }
-                    {this.state.subscribable &&
-                        <button
-                            className={"xs noshadow "}// + this.state.notify_unread ? "active" : "inactive"}
-                            onClick={this.toggleNewMessageNotification}>
-                                <i className="fa fa-comment" />{" " + (this.state.notify_unread ? _("unfollow unread") : _("follow unread"))}
-                        </button>
-                    }
-                    {(this.props.partFunc ? <button
-                        className="xs noshadow reject"
-                        onClick={this.leave}>
-                            <i className="fa fa-times"/>{" "}{leave_text}
-                    </button> : null)}
-                </div>
-            </div>
+    const setNotify = (level: "none" | "mentioned" | "all") => {
+        const n_list: { [channel: string]: { [option: string]: boolean } } = data.get(
+            "chat-indicator.chat-subscriptions",
+            {},
         );
-    }
+        if (!(channelId in n_list)) {
+            n_list[channelId] = {};
+        }
+        if (level === "none") {
+            n_list[channelId].mentioned = false;
+            n_list[channelId].unread = false;
+        } else if (level === "mentioned") {
+            n_list[channelId].mentioned = true;
+            n_list[channelId].unread = false;
+        } else if (level === "all") {
+            n_list[channelId].mentioned = true;
+            n_list[channelId].unread = true;
+        }
+        data.set("chat-indicator.chat-subscriptions", n_list);
+    };
+
+    const leave_text = pgettext("Leave the selected channel.", "Leave channel");
+
+    const group_url =
+        (channelId.startsWith("group-") || undefined) && "/group/" + channelId.slice(6);
+    const tournament_url =
+        (channelId.startsWith("tournament-") || undefined) && "/tournament/" + channelId.slice(11);
+
+    return (
+        <div className="ChatDetails">
+            <div className="actions">
+                {Boolean(group_url) && (
+                    <a href={group_url} target="_blank" rel="noopener noreferrer">
+                        View Group <i className="fa fa-external-link" />
+                    </a>
+                )}
+                {Boolean(tournament_url) && (
+                    <a href={tournament_url} target="_blank" rel="noopener noreferrer">
+                        View Tournament <i className="fa fa-external-link" />
+                    </a>
+                )}
+                {Boolean(group_url || tournament_url) && <hr />}
+                {subscribable && (
+                    <>
+                        <h4>
+                            {pgettext(
+                                "When should a chat message cause the channel name to be highlighted",
+                                "Notification Settings",
+                            )}
+                        </h4>
+                        <div>
+                            <div className="notify-option">
+                                <label htmlFor="notify_all">
+                                    {pgettext(
+                                        "Notify the user when any new chats are sent to the channel",
+                                        "All messages",
+                                    )}
+                                </label>
+                                <input
+                                    type="radio"
+                                    id="notify_all"
+                                    name="notify"
+                                    checked={notify_unread}
+                                    onChange={() => setNotify("all")}
+                                />
+                            </div>
+                            <div className="notify-option">
+                                <label htmlFor="notify_mentioned">
+                                    {pgettext(
+                                        "Notify the user when any new chats are sent to the channel that include @username",
+                                        "Only @mentions",
+                                    )}
+                                </label>
+                                <input
+                                    type="radio"
+                                    id="notify_mentioned"
+                                    name="notify"
+                                    checked={notify_mentioned && !notify_unread}
+                                    onChange={() => setNotify("mentioned")}
+                                />
+                            </div>
+
+                            <div className="notify-option">
+                                <label htmlFor="notify_none">
+                                    {pgettext(
+                                        "Don't notify the user when any chats are sent to the channel",
+                                        "Nothing",
+                                    )}
+                                </label>
+                                <input
+                                    type="radio"
+                                    id="notify_none"
+                                    name="notify"
+                                    checked={!notify_unread && !notify_mentioned}
+                                    onChange={() => setNotify("none")}
+                                />
+                            </div>
+                        </div>
+                        <hr />
+                    </>
+                )}
+                {props.partFunc ? (
+                    <button className="xs no-shadow reject" onClick={leave}>
+                        <i className="fa fa-times" /> {leave_text}
+                    </button>
+                ) : null}
+            </div>
+        </div>
+    );
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2017  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,48 +18,48 @@
 import * as React from "react";
 import * as ValidUrl from "valid-url";
 
-import { _ } from 'translate';
-import { Modal, openModal } from "Modal";
+import { _ } from "@/lib/translate";
+import { Modal } from "@/components/Modal";
 
-declare let swal;
-
-interface Events {
-}
+interface Events {}
 
 interface JosekiSourceModalProperties {
     add_joseki_source: any;
 }
 
 export class JosekiSourceModal extends Modal<Events, JosekiSourceModalProperties, any> {
-    constructor(props) {
+    constructor(props: JosekiSourceModalProperties) {
         super(props);
 
         this.state = {
             description: "",
-            url: ""
+            url: "",
         };
     }
 
-    setDescription = (e) => {
-        if (e.target.value.length < 45) {   // none longer than this at josekipedia
+    setDescription = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.value.length < 45) {
+            // none longer than this at josekipedia
             this.setState({ description: e.target.value });
         }
-    }
+    };
 
-    setUrl = (e) => {
+    setUrl = (e: React.ChangeEvent<HTMLInputElement>) => {
         this.setState({ url: e.target.value });
-    }
+    };
 
-    saveNewJoseki = (e) => {
+    saveNewJoseki = () => {
         this.props.add_joseki_source(this.state.description, this.state.url);
         this.close();
-    }
+    };
 
     render() {
-        const inputs_valid = (this.state.url.length === 0 || ValidUrl.isWebUri(this.state.url)) && this.state.description.length > 8;  // some basic sanity that they put something in
+        const inputs_valid =
+            (this.state.url.length === 0 || ValidUrl.isWebUri(this.state.url)) &&
+            this.state.description.length > 8; // some basic sanity that they put something in
 
         return (
-            <div className="Modal JosekiSourceModal" ref="modal">
+            <div className="Modal JosekiSourceModal">
                 <div className="header">{_("New Joseki Source")}</div>
                 <div className="description">
                     <div>{_("Source")}:</div>
@@ -71,10 +71,13 @@ export class JosekiSourceModal extends Modal<Events, JosekiSourceModalProperties
                 </div>
                 <div className="buttons">
                     <button onClick={this.close}>{_("Cancel")}</button>
-                    {inputs_valid ?
-                        <button className="primary" onClick={this.saveNewJoseki}>{_("Save")}</button> :
-                        <button >{_("Save")}</button>
-                    }
+                    {inputs_valid ? (
+                        <button className="primary" onClick={this.saveNewJoseki}>
+                            {_("Save")}
+                        </button>
+                    ) : (
+                        <button>{_("Save")}</button>
+                    )}
                 </div>
             </div>
         );

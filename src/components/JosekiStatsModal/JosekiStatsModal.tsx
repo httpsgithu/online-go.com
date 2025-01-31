@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2017  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,82 +16,119 @@
  */
 
 import * as React from "react";
-import * as moment from "moment";
-import {Chart} from 'react-charts';
+import moment from "moment";
+import { ResponsiveLine } from "@nivo/line";
+import * as data from "@/lib/data";
+import { _ } from "@/lib/translate";
+import { Modal } from "@/components/Modal";
 
-import * as data from "data";
+interface Events {}
 
-import { _ } from 'translate';
-import { Modal, openModal } from "Modal";
-
-declare let swal;
-
-interface Events {
+export interface JosekiPageVisits {
+    date: string;
+    pageVisits: number;
+    explorePageVisits: number;
+    playPageVisits: number;
+    guestPageVisits: number;
 }
 
 interface JosekiStatsModalProperties {
-    daily_page_visits: Array<{date: string, pageVisits: number,
-        explorePageVisits: number, playPageVisits: number, guestPageVisits: number}>;
+    daily_page_visits: Array<JosekiPageVisits>;
+}
+
+function round_date(the_date: Date): Date {
+    return new Date(the_date.setHours(0, 0, 0, 0));
 }
 
 function StatsChart(props: JosekiStatsModalProperties) {
-    const stats_data = React.useMemo(() => (
-        [
-            {
-                label: 'Total Page Visits',
-                data: props.daily_page_visits.map(day => ({x: new Date(day.date).setHours(0, 0, 0, 0), y: day.pageVisits}))
-            },
-            {
-                label: 'Explore Page Visits',
-                data: props.daily_page_visits.map(day => [new Date(day.date).setHours(0, 0, 0, 0), day.explorePageVisits])
-            },
-            {
-                label: 'Play Mode Visits',
-                data: props.daily_page_visits.map(day => [new Date(day.date).setHours(0, 0, 0, 0), day.playPageVisits])
-            },
-            {
-                label: 'Guest Visits',
-                data: props.daily_page_visits.map(day => [new Date(day.date).setHours(0, 0, 0, 0), day.guestPageVisits])
-            }
-        ]), [props]);
+    const chart_data = [
+        {
+            id: "Total Page Visits",
+            data: props.daily_page_visits.map((day) => ({
+                x: round_date(new Date(day.date)),
+                y: day.pageVisits,
+            })),
+        },
+        {
+            id: "Explore Page Visits",
+            data: props.daily_page_visits.map((day) => ({
+                x: round_date(new Date(day.date)),
+                y: day.explorePageVisits,
+            })),
+        },
+        {
+            id: "Play Mode Visits",
+            data: props.daily_page_visits.map((day) => ({
+                x: round_date(new Date(day.date)),
+                y: day.playPageVisits,
+            })),
+        },
+        {
+            id: "Guest Visits",
+            data: props.daily_page_visits.map((day) => ({
+                x: round_date(new Date(day.date)),
+                y: day.guestPageVisits,
+            })),
+        },
+    ];
 
-    const axes =
-        [
-            { primary: true, type: 'time', position: 'bottom' },
-            { type: 'linear', position: 'left' }
-        ];
-
-    const series = {
-          showPoints: false
-        };
-
-    // Accessible TBD - assumes dark for now
-    const label_colour = data.get("theme") === "light" ? false : true;
+    const chart_theme =
+        data.get("theme") === "light" // (Accessible theme TBD - this assumes accessible is dark for now)
+            ? {
+                  /* nivo defaults work well with our light theme */
+              }
+            : {
+                  text: { fill: "#FFFFFF" },
+                  tooltip: { container: { color: "#111111" } },
+                  grid: { line: { stroke: "#444444" } },
+              };
 
     return (
-        <Chart
-            data={stats_data} axes={axes} series={series} tooltip dark={label_colour}
+        <ResponsiveLine
+            data={chart_data}
+            animate
+            curve="monotoneX"
+            enablePoints={false}
+            enableSlices="x"
+            axisBottom={{
+                format: "%b %g",
+                tickValues: "every 3 months",
+            }}
+            xFormat="time:%Y-%m-%d"
+            xScale={{
+                format: "%Y-%m-%d",
+                precision: "day",
+                type: "time",
+                useUTC: false,
+            }}
+            axisLeft={{ tickValues: 6 }}
+            margin={{
+                bottom: 40,
+                left: 60,
+                right: 20,
+                top: 20,
+            }}
+            theme={chart_theme}
         />
     );
 }
 
 export class JosekiStatsModal extends Modal<Events, JosekiStatsModalProperties, any> {
-
     render() {
-        const start_graph = moment("2020-01-15");  // before this time the data is dodgy
-        const today = moment().startOf('day');
+        const start_graph = moment("2020-01-15"); // before this time the data is dodgy
+        const today = moment().startOf("day");
 
         const daily_page_visits = this.props.daily_page_visits
-            .filter((day) => ((moment(day.date) > start_graph) && (moment(day.date) < today)))
+            .filter((day) => moment(day.date) > start_graph && moment(day.date) < today)
             // strip out tiny days, which theoretically shouldn't be there in the first place
             // (I think they get there when two people simultaneously click on a position in the first visit of a day)
-            .filter((day) => (day.pageVisits > 10));
+            .filter((day) => day.pageVisits > 2);
 
         return (
-            <div className="Modal JosekiStatsModal" ref="modal">
+            <div className="Modal JosekiStatsModal">
                 <div className="header">{_("Joseki Explorer Stats - Daily Position Loads")}</div>
                 <div className="daily-visit-results">
-                    <StatsChart daily_page_visits={daily_page_visits}/>
+                    <StatsChart daily_page_visits={daily_page_visits} />
                 </div>
             </div>
         );

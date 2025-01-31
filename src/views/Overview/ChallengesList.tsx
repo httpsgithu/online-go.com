@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,24 +16,29 @@
  */
 
 import * as React from "react";
-import {_} from "translate";
-import {Card} from "material";
-import {del, post, get} from "requests";
-import {browserHistory} from "ogsHistory";
-import * as data from "data";
-import {UIPush} from "UIPush";
-import {Player} from "Player";
-import {PlayerIcon} from "PlayerIcon";
-import * as player_cache from "player_cache";
-import {profanity_filter} from "profanity_filter";
-import {challenge_text_description} from "ChallengeModal";
-import {FabX, FabCheck} from "material";
-import {ignore} from "misc";
-import cached from 'cached';
+import { _ } from "@/lib/translate";
+import { Card } from "@/components/material";
+import { del, post } from "@/lib/requests";
+import { browserHistory } from "@/lib/ogsHistory";
+import * as data from "@/lib/data";
+import { Player } from "@/components/Player";
+import { PlayerIcon } from "@/components/PlayerIcon";
+import { profanity_filter } from "@/lib/profanity_filter";
+import { challenge_text_description } from "@/components/ChallengeModal";
+import { FabX, FabCheck } from "@/components/material";
+import { ignore } from "@/lib/misc";
+import cached from "@/lib/cached";
 
+interface ChallengeListProps {
+    onAccept: () => void;
+}
 
-export class ChallengesList extends React.PureComponent<{onAccept:() => void}, any> {
-    constructor(props) {
+interface ChallengeListState {
+    challenges: any[];
+}
+
+export class ChallengesList extends React.PureComponent<ChallengeListProps, ChallengeListState> {
+    constructor(props: ChallengeListProps) {
         super(props);
         this.state = {
             challenges: [],
@@ -46,60 +51,62 @@ export class ChallengesList extends React.PureComponent<{onAccept:() => void}, a
     componentWillUnmount() {
         data.unwatch(cached.challenge_list, this.update);
     }
-    update = (challenge_list) => {
-        this.setState({"challenges": challenge_list});
-    }
+    update = (challenge_list: ChallengeListState["challenges"]) => {
+        this.setState({ challenges: challenge_list });
+    };
 
-    deleteChallenge(challenge) {
-        del("me/challenges/%%", challenge.id)
-        .then(ignore)
-        .catch(ignore);
-        this.setState({challenges: this.state.challenges.filter(c => c.id !== challenge.id)});
+    deleteChallenge(challenge: ChallengeListState["challenges"][0]) {
+        del(`me/challenges/${challenge.id}`).then(ignore).catch(ignore);
+        this.setState({ challenges: this.state.challenges.filter((c) => c.id !== challenge.id) });
     }
-    acceptChallenge(challenge) {
-        post("me/challenges/%%/accept", challenge.id, {})
-        .then((res) => {
-            if (res.time_per_move > 0 && res.time_per_move < 1800) {
-                browserHistory.push(`/game/${res.game}`);
-            } else {
-                if (this.props.onAccept) {
-                    this.props.onAccept();
+    acceptChallenge(challenge: ChallengeListState["challenges"][0]) {
+        post(`me/challenges/${challenge.id}/accept`, {})
+            .then((res) => {
+                if (res.time_per_move > 0 && res.time_per_move < 1800) {
+                    browserHistory.push(`/game/${res.game}`);
+                } else {
+                    if (this.props.onAccept) {
+                        this.props.onAccept();
+                    }
                 }
-            }
-        })
-        .catch(ignore);
-        this.setState({challenges: this.state.challenges.filter(c => c.id !== challenge.id)});
+            })
+            .catch(ignore);
+        this.setState({ challenges: this.state.challenges.filter((c) => c.id !== challenge.id) });
     }
 
     render() {
-        let user = data.get('user');
+        const user = data.get("user");
 
         return (
             <div className="ChallengesList">
-                {(this.state.challenges.length > 0) &&
-                    <h2>{_("Challenges")}</h2>
-                }
-                <div className='challenge-cards'>
+                {this.state.challenges.length > 0 && <h2>{_("Challenges")}</h2>}
+                <div className="challenge-cards">
                     {this.state.challenges.map((challenge) => {
-                        let opponent = challenge.challenger.id === user.id ? challenge.challenged : challenge.challenger;
+                        const opponent =
+                            challenge.challenger.id === user.id
+                                ? challenge.challenged
+                                : challenge.challenger;
 
                         return (
-                        <Card key={challenge.id}>
-                            <div className='icon-name'>
-                                <PlayerIcon id={opponent.id} size={64}/>
-                                <div className='name'>
-                                    {challenge.challenged.id === user.id &&
-                                        <FabCheck onClick={this.acceptChallenge.bind(this, challenge)} />
-                                    }
+                            <Card key={challenge.id}>
+                                <div className="icon-name">
+                                    <PlayerIcon id={opponent.id} size={64} />
+                                    <div className="name">
+                                        {challenge.challenged.id === user.id && (
+                                            <FabCheck
+                                                onClick={this.acceptChallenge.bind(this, challenge)}
+                                            />
+                                        )}
+
+                                        <h4 title={profanity_filter(challenge.game.name)}>
+                                            "{profanity_filter(challenge.game.name)}"
+                                        </h4>
+                                        <Player user={opponent} />
+                                    </div>
                                     <FabX onClick={this.deleteChallenge.bind(this, challenge)} />
-                                    <h4>{profanity_filter(challenge.game.name)}</h4>
-                                    <Player user={opponent}/>
                                 </div>
-                            </div>
-                            <div>
-                                {challenge_text_description(challenge)}
-                            </div>
-                        </Card>
+                                <div>{challenge_text_description(challenge)}</div>
+                            </Card>
                         );
                     })}
                 </div>

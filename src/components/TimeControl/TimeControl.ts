@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,9 +15,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JGOFTimeControlSpeed } from "goban";
+
 export namespace TimeControlTypes {
-    export type TimeControlSpeed = "blitz" | "live" | "correspondence";
-    export type TimeControlSystem = "fischer" | "byoyomi" | "canadian" | "simple" | "absolute" | "none";
+    export type TimeControlSpeed = JGOFTimeControlSpeed;
+    export type TimeControlSystem =
+        | "fischer"
+        | "byoyomi"
+        | "canadian"
+        | "simple"
+        | "absolute"
+        | "none";
+
+    export const ALL_SPEEDS: TimeControlSpeed[] = ["blitz", "rapid", "live", "correspondence"];
+    export const ALL_SYSTEMS: TimeControlSystem[] = [
+        "fischer",
+        "byoyomi",
+        "simple",
+        "canadian",
+        "absolute",
+        "none",
+    ];
+    export const ALL_SYSTEMS_EXCEPT_NONE: TimeControlSystem[] = [
+        "fischer",
+        "byoyomi",
+        "simple",
+        "canadian",
+        "absolute",
+    ];
 
     export interface Fischer {
         system: "fischer";
@@ -33,6 +58,8 @@ export namespace TimeControlTypes {
         main_time: number;
         period_time: number;
         periods: number;
+        periods_min: number;
+        periods_max: number;
         pause_on_weekends: boolean;
     }
     export interface Canadian {
@@ -41,6 +68,8 @@ export namespace TimeControlTypes {
         main_time: number;
         period_time: number;
         stones_per_period: number;
+        stones_per_period_min: number;
+        stones_per_period_max: number;
         pause_on_weekends: boolean;
     }
     export interface Simple {
@@ -62,10 +91,10 @@ export namespace TimeControlTypes {
     }
 }
 
-
-export type TimeControl = TimeControlTypes.Fischer
-                        | TimeControlTypes.ByoYomi
-                        | TimeControlTypes.Simple
-                        | TimeControlTypes.Canadian
-                        | TimeControlTypes.Absolute
-                        | TimeControlTypes.None;
+export type TimeControl =
+    | TimeControlTypes.Fischer
+    | TimeControlTypes.ByoYomi
+    | TimeControlTypes.Simple
+    | TimeControlTypes.Canadian
+    | TimeControlTypes.Absolute
+    | TimeControlTypes.None;

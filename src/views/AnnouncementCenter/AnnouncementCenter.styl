@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -14,9 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 .AnnouncementCenter {
-
     text-align: center;
 
     .announcements {
@@ -24,9 +22,11 @@
         text-align: left;
         margin-top: 3rem;
     }
+
     .announcement {
         display: table-row;
     }
+
     .cell {
         display: table-cell;
         padding-right: 0.5rem;
@@ -42,13 +42,36 @@
     input, select {
         width: 30rem;
         max-width: 90vw;
+
+        &.invalid {
+            themed-important: border-color reject;
+        }
     }
 
     .announcement-history {
         text-align: left;
+
         td {
             min-width: 7rem;
-            padding-right: 1.0rem;
+            padding-right: 1rem;
+        }
+    }
+
+    .duration {
+        display: inline-flex;
+        width: 100%;
+        align-items: flex-end;
+        height: 2.3rem;
+
+        input {
+            width: 10rem;
+            margin-right: 0.5rem;
+        }
+
+        .text {
+            display: inline-block;
+            min-width: 5rem;
+            white-space: nowrap;
         }
     }
 }

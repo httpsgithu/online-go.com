@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,27 +16,33 @@
  */
 
 import * as React from "react";
-import * as data from "data";
+import * as data from "@/lib/data";
 
-
-export interface DismissableNotificationInterface {
+interface DismissableNotificationProperties {
     dismissedKey: string;
     className?: string;
-    children: any;
+    children: React.ReactNode;
 }
 
-export class DismissableNotification extends React.Component<DismissableNotificationInterface, any> {
-    constructor(props) {
+interface DismissableNotificationState {
+    dismissed: boolean;
+}
+
+export class DismissableNotification extends React.Component<
+    DismissableNotificationProperties,
+    DismissableNotificationState
+> {
+    constructor(props: DismissableNotificationProperties) {
         super(props);
         this.state = {
-            dismissed: data.get(`dismissed.${props.dismissedKey}`, false)
+            dismissed: data.get(`dismissed.${props.dismissedKey}`, false),
         };
     }
 
     dismiss = () => {
         data.set(`dismissed.${this.props.dismissedKey}`, true);
         this.setState({ dismissed: true });
-    }
+    };
 
     render() {
         if (this.state.dismissed) {
@@ -45,7 +51,7 @@ export class DismissableNotification extends React.Component<DismissableNotifica
 
         return (
             <div className={"DismissableNotification " + (this.props.className || "")}>
-                <i className='fa fa-times' onClick={this.dismiss} />
+                <i className="fa fa-times" onClick={this.dismiss} />
                 {this.props.children}
             </div>
         );

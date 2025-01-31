@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -17,13 +17,17 @@
 
 import * as React from "react";
 
-export class CountDown extends React.PureComponent<{to:Date}, any> {
+interface CountDownProps {
+    to: Date;
+}
+
+export class CountDown extends React.PureComponent<CountDownProps, any> {
     timeout: any;
 
-    constructor(props) {
+    constructor(props: CountDownProps) {
         super(props);
         this.state = {
-            display: this.format(props.to.getTime() - Date.now())
+            display: this.format(props.to.getTime() - Date.now()),
         };
     }
 
@@ -32,26 +36,29 @@ export class CountDown extends React.PureComponent<{to:Date}, any> {
             clearTimeout(this.timeout);
         }
 
-        let left = this.props.to.getTime() - Date.now();
+        const left = this.props.to.getTime() - Date.now();
 
         if (left > 0) {
             //this.timeout = setTimeout(() => this.update(), left % 100 || 100);
             this.timeout = setTimeout(() => this.update(), 100);
         }
 
-        this.setState({display: this.format(left)});
+        this.setState({ display: this.format(left) });
     }
 
-    format(ms) {
+    format(ms: number): string {
         if (ms < 0) {
-            return '0:00.0';
+            return "0:00.0";
         }
 
-        let minutes = Math.floor(ms / 60000);
+        const minutes = Math.floor(ms / 60000);
         ms -= minutes * 60000;
-        let seconds = Math.floor(ms / 1000);
+        const seconds = Math.floor(ms / 1000);
         ms -= seconds * 1000;
-        let tenths = Math.floor(ms / 100);
+        const tenths = Math.floor(ms / 100);
+        if (isNaN(minutes) || isNaN(seconds) || isNaN(tenths)) {
+            return "";
+        }
 
         if (seconds < 10) {
             return `${minutes}:0${seconds}.${tenths}`;
@@ -63,7 +70,7 @@ export class CountDown extends React.PureComponent<{to:Date}, any> {
         this.update();
     }
 
-    componentDidUpdate(prevProps, prevState) {
+    componentDidUpdate() {
         this.update();
     }
 
