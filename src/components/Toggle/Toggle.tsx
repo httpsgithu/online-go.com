@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,32 +16,25 @@
  */
 
 import * as React from "react";
-import Switch from 'react-switch';
+import Switch from "react-switch";
 
 interface ToggleProps {
     checked: boolean;
-    onChange: (checked: boolean, event:any, id: string) => void;
+    onChange: (checked: boolean, event: any, id: string) => void;
 
     width?: number;
     height?: number;
-    uncheckedIcon?: JSX.Element | boolean;
-    checkedIcon?: JSX.Element | boolean;
+    uncheckedIcon?: React.ReactElement | boolean;
+    checkedIcon?: React.ReactElement | boolean;
     id?: string;
     disabled?: boolean;
     className?: string;
 }
 
-export function Toggle(props:ToggleProps):JSX.Element {
+export function Toggle(props: ToggleProps): React.ReactElement {
     return (
-        <span className={'Toggle ' + (props.checked ? 'on' : 'off')}>
-            <Switch
-                height={20}
-                width={48}
-                checkedIcon={false}
-                uncheckedIcon={false}
-                {...props}
-            />
+        <span className={"Toggle " + (props.checked ? "on" : "off")}>
+            <Switch height={20} width={48} checkedIcon={false} uncheckedIcon={false} {...props} />
         </span>
     );
-
 }

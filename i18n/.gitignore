@@ -7,3 +7,6 @@ build/
 cldr/
 backups/
 Makefile.production
+keys.json
+autotranslations.json
+llm-keys-cache.json

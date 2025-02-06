@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,47 +16,44 @@
  */
 
 import * as React from "react";
-import {Link} from "react-router-dom";
-import {_, pgettext, interpolate} from "translate";
-import {post, get} from "requests";
-import {browserHistory} from "ogsHistory";
-import {PaginatedTable} from "PaginatedTable";
-import {SearchInput} from "misc-ui";
-import {navigateTo} from "misc";
+import * as data from "@/lib/data";
+import { Link } from "react-router-dom";
+import { _ } from "@/lib/translate";
+import { PaginatedTable } from "@/components/PaginatedTable";
+import { SearchInput } from "@/components/misc-ui";
+import { navigateTo } from "@/lib/misc";
+import { useUser } from "@/lib/hooks";
 
+export function GroupList(): React.ReactElement {
+    const user = useUser();
+    const [name_contains_filter, setNameContainsFilter] = React.useState("");
 
-interface GroupListProperties {
-}
+    const my_groups = data.get("cached.groups", []);
 
-export class GroupList extends React.PureComponent<GroupListProperties, any> {
-    refs: {
-        table
-    };
-
-    constructor(props) {
-        super(props);
-        this.state = {
-        };
-    }
-    componentDidMount() {
+    React.useEffect(() => {
         window.document.title = _("Groups");
-    }
+    }, []);
 
-    render() {
-        return (
+    console.log(my_groups);
+
+    return (
         <div className="page-width">
             <div className="GroupList">
-
                 <div className="page-nav">
-                    <h2><i className="fa fa-users"></i> {_("Groups")}</h2>
+                    <h2>
+                        <i className="fa fa-users"></i> {_("Groups")}
+                    </h2>
                     <div>
-                        <Link className="primary" to="/group/create"><i className="fa fa-plus-square"></i> {_("New group")}</Link>
+                        {(!user.anonymous || null) && (
+                            <Link className="primary" to="/group/create">
+                                <i className="fa fa-plus-square"></i> {_("New group")}
+                            </Link>
+                        )}
 
                         <SearchInput
                             placeholder={_("Search")}
-                            onChange={(event) => {
-                                this.refs.table.filter.name__icontains = (event.target as HTMLInputElement).value.trim();
-                                this.refs.table.filter_updated();
+                            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                                setNameContainsFilter(event.target.value.trim());
                             }}
                         />
                     </div>
@@ -65,34 +62,81 @@ export class GroupList extends React.PureComponent<GroupListProperties, any> {
                 <div className="group-list-container">
                     <PaginatedTable
                         className=""
-                        ref="table"
                         name="game-history"
                         source={`groups/`}
                         orderBy={["-member_count"]}
-                        filter={{ "name__icontains": "" }}
+                        filter={{
+                            ...(name_contains_filter !== "" && {
+                                name__icontains: name_contains_filter,
+                            }),
+                        }}
                         onRowClick={(row, ev) => navigateTo(`/group/${row.id}`, ev)}
                         columns={[
-                            {header: "",  className: "group-icon-header",
-                                render: (X) => (<img className='group-icon' src={X.icon} width="64" height="64" />)},
-                            {header: _("Group"),  className: () => "name",
-                             render: (X) => (
-                                 <div className="group-name">
-                                    <div>
-                                        <div style={{fontWeight: "bold"}}>{X.name}</div>
-                                        <div style={{fontStyle: "italic"}}>
-                                            {X.summary}
+                            {
+                                header: "",
+                                className: "group-icon-header",
+                                render: (X) => (
+                                    <img
+                                        className="group-icon"
+                                        src={X.icon}
+                                        width="64"
+                                        height="64"
+                                    />
+                                ),
+                            },
+                            {
+                                header: _("Group"),
+                                className: () => "name",
+                                render: (X) => (
+                                    <div className="group-name">
+                                        <div>
+                                            <div style={{ fontWeight: "bold" }}>{X.name}</div>
+                                            <div style={{ fontStyle: "italic" }}>{X.summary}</div>
                                         </div>
                                     </div>
-                                 </div>
-                             )
+                                ),
                             },
-                            {header: _("Members"), className: () => "member-count",                    render: (X) => X.member_count},
+                            {
+                                header: _("Members"),
+                                className: () => "member-count",
+                                render: (X) => X.member_count,
+                            },
                         ]}
                     />
 
+                    {my_groups.length > 0 && (
+                        <div className="MyGroups">
+                            <h3>{_("My groups")}</h3>
+                            {my_groups.sort(group_sort_fn).map((group) => (
+                                <div key={group.id} className="group-item">
+                                    <Link to={`/group/${group.id}`}>
+                                        <img
+                                            className="group-icon"
+                                            src={group.icon}
+                                            width="16"
+                                            height="16"
+                                        />
+                                        {group.name} ({group.member_count})
+                                    </Link>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
-        );
+    );
+}
+
+function group_sort_fn(a: { name: string }, b: { name: string }) {
+    const a_name = a.name.toLowerCase();
+    const b_name = b.name.toLowerCase();
+
+    if (a_name < b_name) {
+        return -1;
+    } else if (a_name > b_name) {
+        return 1;
+    } else {
+        return 0;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,18 +15,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as React from "react";
+import React from "react";
 
-export const LineText = props => (<div {...props} className={"LineText " + (props.className || "")}><span className="left"/><span className="contents">{props.children}</span><span className="right"/></div>);
+/* This is intended to create text embedded in a horizontal line like
+ *   --- my text ---
+ * It relies on css for 'left' and 'right' being as expected in context, caveat emptor. */
 
-export const SearchInput = props => (
-    <div className={"SearchInput " + (props.className || "")}>
-        <i className="fa fa-search"></i>
-        <input type="search" className={(props.className || "")} {...props}/>
+export const LineText = (props: React.HTMLProps<HTMLDivElement>) => (
+    <div {...props} className={"LineText " + (props.className || "")}>
+        <span className="left" />
+        <span className="contents">{props.children}</span>
+        <span className="right" />
     </div>
 );
 
-export const Ribbon = props => (
+export const SearchInput = (props: React.HTMLProps<HTMLInputElement>) => (
+    <div className={"SearchInput " + (props.className || "")}>
+        <i className="fa fa-search"></i>
+        <input type="search" className={props.className || ""} {...props} />
+    </div>
+);
+
+export const Ribbon = (props: React.HTMLProps<HTMLDivElement>) => (
     <div className="Ribbon-container">
         <div {...props} className={"Ribbon " + (props.className || "")}>
             {props.children}

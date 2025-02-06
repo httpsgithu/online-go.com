@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,46 +16,67 @@
  */
 
 import * as React from "react";
-import { PuzzleConfig, GoEngineConfig } from 'goban';
-import { LearningPage, DummyPage } from './LearningPage';
-import { _, pgettext, interpolate } from "translate";
-import { LearningHubSection } from './LearningHubSection';
+import { PuzzleConfig, GobanEngineConfig } from "goban";
+import { LearningPage, LearningPageProperties } from "./LearningPage";
+import { _, pgettext } from "@/lib/translate";
+import { LearningHubSection } from "./LearningHubSection";
 
 export class EndingTheGame extends LearningHubSection {
-    static pages():Array<typeof LearningPage> {
-        return [
-            Page1,
-            Page2
-        ];
+    static pages(): Array<typeof LearningPage> {
+        return [Page1, Page2];
     }
 
-    static section():string { return "ending-the-game"; }
-    static title():string { return pgettext("Tutorial section name on learning how to end the game", "End the game!"); }
-    static subtext():string { return pgettext("Tutorial section subtext on learning how to end the game", "Pass and pass"); }
+    static section(): string {
+        return "ending-the-game";
+    }
+    static title(): string {
+        return pgettext("Tutorial section name on learning how to end the game", "End the game!");
+    }
+    static subtext(): string {
+        return pgettext(
+            "Tutorial section subtext on learning how to end the game",
+            "Pass and pass",
+        );
+    }
 }
 
 class Page1 extends LearningPage {
     pass_pressed = false;
 
-    constructor(props) {
+    constructor(props: LearningPageProperties) {
         super(props);
     }
 
     text() {
-        return _("When you don't think there are any more good moves to make, to end the game both players pass their turns. This game is finished. Click pass to end it.");
+        return _(
+            "When you don't think there are any more good moves to make, to end the game both players pass their turns. This game is finished. Click pass to end it.",
+        );
     }
     button() {
-        return <div>
-            <button className='primary' onClick={() => { this.pass_pressed = true; this.onUpdate(); }}>{_("Pass")}</button>
-        </div>;
+        return (
+            <div>
+                <button
+                    className="primary"
+                    onClick={() => {
+                        this.pass_pressed = true;
+                        this.onUpdate();
+                    }}
+                >
+                    {_("Pass")}
+                </button>
+            </div>
+        );
     }
-    config():PuzzleConfig {
+    config(): PuzzleConfig {
         return {
             mode: "puzzle",
-            initial_state: {black: "fafbgbhbgdhdcedeheiebfdfefgfhfagcgegfggg", white: "eahaebibbcccecfcgchcicadcdddfdidaebeeefegeafff"},
-            move_tree: this.makePuzzleMoveTree(
-                [ "b6" /* dummy to trigger fail */ ], [ ]
-            )
+            initial_state: {
+                /* cspell:disable-next-line */
+                black: "fafbgbhbgdhdcedeheiebfdfefgfhfagcgegfggg",
+                /* cspell:disable-next-line */
+                white: "eahaebibbcccecfcgchcicadcdddfdidaebeeefegeafff",
+            },
+            move_tree: this.makePuzzleMoveTree(["b6" /* dummy to trigger fail */], []),
         };
     }
 
@@ -67,22 +88,30 @@ class Page1 extends LearningPage {
 class Page2 extends LearningPage {
     success = false;
 
-    constructor(props) {
+    constructor(props: LearningPageProperties) {
         super(props);
     }
 
     text() {
-        return _("After both players have passed, you enter a \"Stone Removal Phase\", where you can remove obviously dead stones from play. You could capture these in game as well, but most players opt not to because it's quicker. Remove the dead black stones by clicking them. ");
+        return _(
+            'After both players have passed, you enter a "Stone Removal Phase", where you can remove obviously dead stones from play. You could capture these in game as well, but most players opt not to because it\'s quicker. Remove the dead black stones by clicking them. ',
+        );
     }
-    config():PuzzleConfig | GoEngineConfig {
+    config(): PuzzleConfig | GobanEngineConfig {
         return {
             mode: "play",
             phase: "stone removal",
-            initial_state: {black: "fafbgbhbgdhdcedeheiebfdfefgfhfagcgegfggg", white: "eahaebibbcccecfcgchcicadcdddfdidaebeeefegeafff"},
+            initial_state: {
+                /* cspell:disable-next-line */
+                black: "fafbgbhbgdhdcedeheiebfdfefgfhfagcgegfggg",
+                /* cspell:disable-next-line */
+                white: "eahaebibbcccecfcgchcicadcdddfdidaebeeefegeafff",
+            },
         };
     }
 
-    onStoneRemoval(stone_removal_string:string):void {
+    onStoneRemoval(stone_removal_string: string): void {
+        /* cspell:disable-next-line */
         if (stone_removal_string === "fafbgbhb") {
             this.success = true;
             this.onUpdate();

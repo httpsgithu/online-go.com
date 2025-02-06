@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,54 +16,54 @@
  */
 
 import * as React from "react";
-import * as data from "data";
-import {_, pgettext, interpolate} from "translate";
+import * as data from "@/lib/data";
 import { useState, useEffect, useCallback } from "react";
+import { ChatChannelList, ChatLog, ChatUsersList } from "@/components/Chat";
+import { useParams } from "react-router";
 
-//import {post, get} from "requests";
-//import {errorAlerter} from "misc";
-//import {Chat} from "Chat";
-import { ChatChannelList, ChatLog, ChatUsersList } from "Chat";
+export function ChatView(): React.ReactElement | null {
+    const { channel } = useParams();
 
+    data.set("chat.active_channel", channel);
 
-interface ChatViewProperties {
-    match: {
-        params: {
-            channel: string;
-        }
-    };
-}
-
-
-export function ChatView(props: ChatViewProperties):JSX.Element {
-    let channel = props.match.params.channel;
-
-    data.set('chat.active_channel', channel);
-
-    let [showing_channels, set_showing_channels]:[boolean, (tf:boolean) => void] = useState(false as boolean);
-    let [showing_users, set_showing_users]:[boolean, (tf:boolean) => void] = useState(false as boolean);
+    const [showing_channels, set_showing_channels]: [boolean, (tf: boolean) => void] = useState(
+        false as boolean,
+    );
+    const [showing_users, set_showing_users]: [boolean, (tf: boolean) => void] = useState(
+        false as boolean,
+    );
 
     useEffect(() => {
         set_showing_channels(false);
         set_showing_users(false);
     }, [channel]);
 
-    const onShowChannels = useCallback((tf:boolean) => {
-        if (tf !== showing_channels) {
-            set_showing_channels(tf);
-            set_showing_users(false);
-        }
-    }, [channel, showing_channels]);
+    const onShowChannels = useCallback(
+        (tf: boolean) => {
+            if (tf !== showing_channels) {
+                set_showing_channels(tf);
+                set_showing_users(false);
+            }
+        },
+        [channel, showing_channels],
+    );
 
-    const onShowUsers = useCallback((tf:boolean) => {
-        if (tf !== showing_users) {
-            set_showing_users(tf);
-            set_showing_channels(false);
-        }
-    }, [channel, showing_users]);
+    const onShowUsers = useCallback(
+        (tf: boolean) => {
+            if (tf !== showing_users) {
+                set_showing_users(tf);
+                set_showing_channels(false);
+            }
+        },
+        [channel, showing_users],
+    );
 
+    if (!channel) {
+        console.error("Null channel passed to ChatView");
+        return null;
+    }
 
-    let subprops = {
+    const subprops = {
         channel: channel,
         showingChannels: showing_channels,
         showingUsers: showing_users,
@@ -72,9 +72,15 @@ export function ChatView(props: ChatViewProperties):JSX.Element {
     };
 
     return (
-        <div className={'ChatView ' + (showing_channels ? ' show-channels' : '') + (showing_users ? ' show-users' : '')} >
+        <div
+            className={
+                "ChatView " +
+                (showing_channels ? " show-channels" : "") +
+                (showing_users ? " show-users" : "")
+            }
+        >
             <ChatChannelList {...subprops} />
-            <ChatLog  autoFocus={true} updateTitle={true} {...subprops} />
+            <ChatLog autoFocus={true} updateTitle={true} {...subprops} />
             <ChatUsersList {...subprops} />
         </div>
     );

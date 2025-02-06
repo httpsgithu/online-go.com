@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,54 +15,53 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {Goban, GoMath} from "goban";
+import { GobanRenderer } from "goban";
 
 export class PuzzleNavigation {
+    _goban!: GobanRenderer;
 
-    _goban: Goban;
-
-    constructor() {}
-
-    set goban(newValue: Goban) { this._goban = newValue; }
+    set goban(newValue: GobanRenderer) {
+        this._goban = newValue;
+    }
 
     nav_up = () => {
         this.checkAndEnterAnalysis();
         this._goban.prevSibling();
-    }
+    };
     nav_down = () => {
         this.checkAndEnterAnalysis();
         this._goban.nextSibling();
-    }
+    };
     nav_first = () => {
         this.checkAndEnterAnalysis();
         this._goban.showFirst();
-    }
+    };
     nav_prev_10 = () => {
         this.checkAndEnterAnalysis();
         for (let i = 0; i < 10; ++i) {
             // update display only for final navigation result
-            this._goban.showPrevious( i < 9 );
+            this._goban.showPrevious(i < 9);
         }
-    }
+    };
     nav_prev = () => {
         this.checkAndEnterAnalysis();
         this._goban.showPrevious();
-    }
-    nav_next = (event?: React.MouseEvent<any>) => {
+    };
+    nav_next = () => {
         this.checkAndEnterAnalysis();
         this._goban.showNext();
-    }
+    };
     nav_next_10 = () => {
         this.checkAndEnterAnalysis();
         for (let i = 0; i < 10; ++i) {
             // update display only for final navigation result
-            this._goban.showNext( i < 9 );
+            this._goban.showNext(i < 9);
         }
-    }
+    };
     nav_last = () => {
         this.checkAndEnterAnalysis();
         this._goban.jumpToLastOfficialMove();
-    }
+    };
 
     checkAndEnterAnalysis() {
         if (this._goban.mode === "puzzle") {
@@ -82,5 +81,4 @@ export class PuzzleNavigation {
         }
         return true;
     }
-
 }

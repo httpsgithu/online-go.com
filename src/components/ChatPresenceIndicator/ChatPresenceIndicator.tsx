@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,68 +16,72 @@
  */
 
 import * as React from "react";
-import {_, pgettext, interpolate} from "translate";
-import {post, get} from "requests";
-import {errorAlerter} from "misc";
-import {chat_manager, ChatChannelProxy} from "chat_manager";
-import * as preferences from "preferences";
-import {Player} from "Player";
+import { _ } from "@/lib/translate";
+import { chat_manager, ChatChannelProxy } from "@/lib/chat_manager";
 
 interface ChatPresenceIndicatorProperties {
     channel: string;
     userId: number;
 }
 
-export class ChatPresenceIndicator extends React.PureComponent<ChatPresenceIndicatorProperties, any> {
-    proxy: ChatChannelProxy;
+interface ChatPresenceIndicatorState {
+    online: boolean;
+}
 
-    constructor(props) {
+export class ChatPresenceIndicator extends React.PureComponent<
+    ChatPresenceIndicatorProperties,
+    ChatPresenceIndicatorState
+> {
+    proxy?: ChatChannelProxy;
+
+    constructor(props: ChatPresenceIndicatorProperties) {
         super(props);
         this.state = {
             online: false,
         };
     }
 
-    UNSAFE_componentWillMount() {
+    componentDidMount() {
         this.init(this.props.channel, this.props.userId);
     }
-    UNSAFE_componentWillReceiveProps(next_props) {
-        if (this.props.channel !== next_props.channel) {
+
+    componentDidUpdate(prev_props: ChatPresenceIndicatorProperties) {
+        if (this.props.channel !== prev_props.channel || this.props.userId !== prev_props.userId) {
             this.deinit();
-            this.init(next_props.channel, next_props.userId);
+            this.init(this.props.channel, this.props.userId);
         }
     }
     componentWillUnmount() {
         this.deinit();
     }
 
-    init(channel, user_id) {
+    init(channel: string, user_id: number) {
         this.proxy = chat_manager.join(channel);
         this.proxy.on("join", () => this.update(user_id));
         this.proxy.on("part", () => this.update(user_id));
         this.update(user_id);
     }
     deinit() {
-        this.proxy.part();
-        this.proxy = null;
+        this.proxy?.part();
+        this.proxy = undefined;
     }
-    update = (user_id) => {
-        let online = user_id in this.proxy.channel.user_list;
-        if (this.state.online !== online) {
-            this.setState({online: online});
+    update = (user_id: number) => {
+        if (this.proxy) {
+            const online = user_id in this.proxy.channel.user_list;
+            if (this.state.online !== online) {
+                this.setState({ online: online });
+            }
         }
-    }
-    toggleSortOrder = () => {
-        let new_sort_order = preferences.get("chat.user-sort-order") === "rank" ? "alpha" : "rank";
-        preferences.set("chat.user-sort-order", new_sort_order);
-        this.setState({"user_sort_order": new_sort_order});
-    }
-
+    };
 
     render() {
         return (
-            <i className={`ChatPresenceIndicator ${this.state.online ? "online" : ""} fa fa-circle`} title={this.state.online ? _("Online") : _("Offline")} />
+            <i
+                className={`ChatPresenceIndicator ${
+                    this.state.online ? "online" : ""
+                } fa fa-circle`}
+                title={this.state.online ? _("Online") : _("Offline")}
+            />
         );
     }
 }
-

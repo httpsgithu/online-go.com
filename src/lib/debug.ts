@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -37,28 +37,27 @@ export default class Debug {
     private format(message: string): string {
         return `[${this.module}] ${message}`;
     }
-    log = (message: string, ...rest: Array<any>) => {
+    log = (message: string, ...rest: Array<any>) =>
         debug[this.module] ? console.log(this.format(message), ...rest) : undefined;
-    }
-    trace = (message: string, ...rest: Array<any>) => {
+    trace = (message: string, ...rest: Array<any>) =>
         debug[this.module] ? console.trace(this.format(message), ...rest) : undefined;
-    }
-    info = (message: string, ...rest: Array<any>) => {
+    info = (message: string, ...rest: Array<any>) =>
         debug[this.module] ? console.info(this.format(message), ...rest) : undefined;
-    }
     warn = (message: string, ...rest: Array<any>) => {
         console.warn(this.format(message), ...rest);
-    }
+    };
     error = (message: string, ...rest: Array<any>) => {
         console.error(this.format(message), ...rest);
-    }
+    };
 
     assert(assertion: boolean, message: string, ...rest: Array<any>) {
-        if (assertion) { return; }
+        if (assertion) {
+            return;
+        }
         console.error(this.format(message), ...rest);
 
         // TODO: Phone home to tell of our distress.
     }
 }
 
-window['debug'] = debug;
+window.debug = debug;

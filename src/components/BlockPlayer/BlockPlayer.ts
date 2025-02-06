@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,14 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {get, put} from "requests";
-import * as data from "data";
-import {ignore, errorAlerter, errorLogger} from "misc";
-import ITC from "ITC";
-import cached from 'cached';
-import * as player_cache from "player_cache";
+import { put } from "@/lib/requests";
+import * as data from "@/lib/data";
+import { errorAlerter, errorLogger } from "@/lib/misc";
+import ITC from "@/lib/ITC";
+import cached from "@/lib/cached";
+import * as player_cache from "@/lib/player_cache";
 
-class BlockState {
+export class BlockState {
     blocked: number; // player id
     username?: string;
 
@@ -30,13 +30,13 @@ class BlockState {
     block_games = false;
     block_announcements = false;
 
-    constructor(blocked:number) {
+    constructor(blocked: number) {
         this.blocked = blocked;
     }
 }
 
-let ignores: {[player_id: number]: boolean} = {};
-let block_states: {[player_id: number]: BlockState} = {};
+const ignores: { [player_id: number | string]: boolean } = {};
+let block_states: { [player_id: number | string]: BlockState } = {};
 
 export function setIgnore(player_id: number, tf: boolean) {
     if (tf) {
@@ -50,11 +50,11 @@ export function setIgnore(player_id: number, tf: boolean) {
             block_states[player_id] = new BlockState(player_id);
         }
         block_states[player_id].block_chat = tf;
-        put("players/%%/block", player_id, {block_chat: tf ? 1 : 0})
-        .then(() => {
-            ITC.send("update-blocks", true);
-        })
-        .catch(errorAlerter);
+        put(`players/${player_id}/block`, { block_chat: tf ? 1 : 0 })
+            .then(() => {
+                ITC.send("update-blocks", true);
+            })
+            .catch(errorAlerter);
     }
 }
 
@@ -64,11 +64,11 @@ export function setGameBlock(player_id: number, tf: boolean) {
             block_states[player_id] = new BlockState(player_id);
         }
         block_states[player_id].block_games = tf;
-        put("players/%%/block", player_id, {block_games: tf ? 1 : 0})
-        .then(() => {
-            ITC.send("update-blocks", true);
-        })
-        .catch(errorAlerter);
+        put(`players/${player_id}/block`, { block_games: tf ? 1 : 0 })
+            .then(() => {
+                ITC.send("update-blocks", true);
+            })
+            .catch(errorAlerter);
     }
 }
 
@@ -78,11 +78,11 @@ export function setAnnouncementBlock(player_id: number, tf: boolean) {
             block_states[player_id] = new BlockState(player_id);
         }
         block_states[player_id].block_announcements = tf;
-        put("players/%%/block", player_id, {block_announcements: tf ? 1 : 0})
-        .then(() => {
-            ITC.send("update-blocks", true);
-        })
-        .catch(errorAlerter);
+        put(`players/${player_id}/block`, { block_announcements: tf ? 1 : 0 })
+            .then(() => {
+                ITC.send("update-blocks", true);
+            })
+            .catch(errorAlerter);
     }
 }
 
@@ -91,51 +91,67 @@ export function getBlocks(player_id: number): BlockState {
 }
 
 export function getAllBlocks(): BlockState[] {
-    return Object.keys(block_states).map(k => block_states[k]);
+    return Object.keys(block_states).map((k: number | string) => block_states[k]);
 }
 
 export function getAllBlocksWithUsernames(): Promise<BlockState[]> {
-    let ret = Object.keys(block_states).map(k => block_states[k]);
+    const ret: BlockState[] = Object.keys(block_states).map((k) => block_states[k]);
 
-    return (
-        Promise.all(
-            ret.filter(bs => bs.blocked).map(
-                bs => player_cache.fetch(bs.blocked, ['username'])
-                                   .then((player => bs.username = player.username))
-            )
-        ).then(() => {
-            ret.sort((a, b) => a.username.localeCompare(b.username));
-            return ret;
-        })
-    );
+    return Promise.all(
+        ret
+            .filter((bs) => bs.blocked)
+            .map((bs) =>
+                player_cache
+                    .fetch(bs.blocked, ["username"])
+                    .then((player) => (bs.username = player.username)),
+            ),
+    ).then(() => {
+        ret.sort((a, b) => a.username?.localeCompare(b.username ?? "") ?? 0);
+        return ret;
+    });
 }
 
-export function player_is_ignored(user_id) {
+export function player_is_ignored(user_id: number) {
     return user_id in ignores;
 }
 
-function ignoreUser(uid, dont_fetch = false) {
-    if (dont_fetch) {
-        ignores[uid] = true;
-        $("<style type='text/css'> .chat-user-" + uid + " { display: none !important; } </style>").appendTo("head");
+function createOrUpdateStyle(uid: number, display: string) {
+    const styleId = `ignore-style-${uid}`;
+    let style = document.getElementById(styleId) as HTMLStyleElement;
+
+    if (!style) {
+        style = document.createElement("style");
+        style.type = "text/css";
+        style.id = styleId;
+        document.head.appendChild(style);
     }
-    else {
-        player_cache.fetch(uid, ['ui_class']).then((obj) => {
-            if (obj.ui_class.indexOf('moderator') < 0) {
-                ignores[uid] = true;
-                $("<style type='text/css'> .chat-user-" + uid + " { display: none !important; } </style>").appendTo("head");
-            } else {
-                console.error("Can't ignore a moderator.");
-            }
-        })
-        .catch(errorLogger);
-    }
-}
-function unIgnoreUser(uid) {
-    delete ignores[uid];
-    $("<style type='text/css'> .chat-user-" + uid + " { display: block !important; } </style>").appendTo("head");
+
+    style.textContent = `.chat-user-${uid} { display: ${display} !important; }`;
 }
 
+function ignoreUser(uid: number, dont_fetch = false) {
+    if (dont_fetch) {
+        ignores[uid] = true;
+        createOrUpdateStyle(uid, "none");
+    } else {
+        player_cache
+            .fetch(uid, ["ui_class"])
+            .then((obj) => {
+                if ((obj.ui_class?.indexOf("moderator") || 0) < 0) {
+                    ignores[uid] = true;
+                    createOrUpdateStyle(uid, "none");
+                } else {
+                    console.error("Can't ignore a moderator.");
+                }
+            })
+            .catch(errorLogger);
+    }
+}
+
+function unIgnoreUser(uid: number) {
+    delete ignores[uid];
+    createOrUpdateStyle(uid, "block");
+}
 
 data.watch(cached.blocks, (blocks: BlockState[]) => {
     try {
@@ -144,22 +160,22 @@ data.watch(cached.blocks, (blocks: BlockState[]) => {
         }
 
         block_states = {};
-        let new_ignores: {[player_id: number]: boolean} = {};
-        for (let entry of blocks) {
+        const new_ignores: { [player_id: number]: boolean } = {};
+        for (const entry of blocks) {
             block_states[entry.blocked] = entry;
             if (entry.block_chat) {
                 new_ignores[entry.blocked] = true;
             }
         }
 
-        for (let uid in new_ignores) {
+        for (const uid in new_ignores) {
             if (!(uid in ignores)) {
-                ignoreUser(uid, true);
+                ignoreUser(Number(uid), true);
             }
         }
-        for (let uid in ignores) {
+        for (const uid in ignores) {
             if (!(uid in new_ignores)) {
-                unIgnoreUser(uid);
+                unIgnoreUser(Number(uid));
             }
         }
     } catch (e) {

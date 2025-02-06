@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,15 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as React from "react";
-import { PuzzleConfig } from 'goban';
-import {LearningPage, DummyPage} from './LearningPage';
-import {_, pgettext, interpolate} from "translate";
-import {LearningHubSection} from './LearningHubSection';
-
+import { PuzzleConfig } from "goban";
+import { LearningPage, LearningPageProperties } from "./LearningPage";
+import { _, pgettext } from "@/lib/translate";
+import { LearningHubSection } from "./LearningHubSection";
 
 export class Ladders extends LearningHubSection {
-    static pages():Array<typeof LearningPage> {
+    static pages(): Array<typeof LearningPage> {
         return [
             Page1,
             Page2,
@@ -34,25 +32,34 @@ export class Ladders extends LearningHubSection {
         ];
     }
 
-    static section():string { return "ladders"; }
-    static title():string { return pgettext("Tutorial section on ladders", "Ladders!"); }
+    static section(): string {
+        return "ladders";
+    }
+    static title(): string {
+        return pgettext("Tutorial section on ladders", "Ladders!");
+    }
     //static subtext():string { return pgettext("Tutorial section on ladders", ""); }
-    static subtext():string { return ""; }
+    static subtext(): string {
+        return "";
+    }
 }
 
 class Page1 extends LearningPage {
-    constructor(props) {
+    constructor(props: LearningPageProperties) {
         super(props);
     }
 
     text() {
-        return _("This zig zag pattern is called a \"ladder\". Capture the white stones by continuing the ladder.");
+        return _(
+            'This zig zag pattern is called a "ladder". Capture the white stones by continuing the ladder.',
+        );
     }
-    config():PuzzleConfig {
+    config(): PuzzleConfig {
         return {
             mode: "puzzle",
 
-            initial_state: {black: "fceddegedfffeg", white: "fdgdeefeef"},
+            /* cSpell:disable-next-line */
+            initial_state: { black: "fceddegedfffeg", white: "fdgdeefeef" },
             move_tree: this.makePuzzleMoveTree(
                 [
                     "h6g7g8h7j7h8h9j8j9",
@@ -60,52 +67,45 @@ class Page1 extends LearningPage {
                     "h6g7g8h7h8j7j6j8j9",
                     "h6g7g8h7h8j7j8j6j5",
                 ],
-                [
-                    "h6g7g8h7j7h8j8h9j9j6",
-                ]
-            )
+                ["h6g7g8h7j7h8j8h9j9j6"],
+            ),
         };
     }
 }
 
 class Page2 extends LearningPage {
-    constructor(props) {
+    constructor(props: LearningPageProperties) {
         super(props);
     }
 
     text() {
         return _("Capture the white stones using a ladder.");
     }
-    config():PuzzleConfig {
+    config(): PuzzleConfig {
         return {
             mode: "puzzle",
 
-            initial_state: {black: "gccecfdg", white: "df"},
-            move_tree: this.makePuzzleMoveTree(
-                [
-                    "e4d5d6e5f5e6e7f6g6f7f8"
-                ],
-                [
-                    "d5e4"
-                ]
-            )
+            /* cSpell:disable-next-line */
+            initial_state: { black: "gccecfdg", white: "df" },
+            move_tree: this.makePuzzleMoveTree(["e4d5d6e5f5e6e7f6g6f7f8"], ["d5e4"]),
         };
     }
 }
 
 class Page3 extends LearningPage {
-    constructor(props) {
+    constructor(props: LearningPageProperties) {
         super(props);
     }
 
     text() {
         return _("Stones in the path of a ladder break the ladder. Stay alive!");
     }
-    config():PuzzleConfig {
+    config(): PuzzleConfig {
         return {
             mode: "puzzle",
 
-            initial_state: {black: "fcef", white: "eedfegfg"},
+            /* cSpell:disable-next-line */
+            initial_state: { black: "fcef", white: "eedfegfg" },
             move_tree: this.makePuzzleMoveTree(
                 [
                     "f4g4f5f6g5h5g6e6g7",
@@ -119,7 +119,7 @@ class Page3 extends LearningPage {
                     "f4g4f5f6g5h5g6e6h4g3h7h6g7",
                     "f4g4f5f6g5h5g6e6g3h4g7",
                     "f4g4f5f6g5h5g6e6g3h4h6g7h7g8h8f8h3",
-                    "f4g4f5f6g5h5g6e6g3h4h7h6g7"
+                    "f4g4f5f6g5h5g6e6g3h4h7h6g7",
                 ],
                 [
                     "f4g4f5f6g5h5g6e6d3g7",
@@ -134,9 +134,9 @@ class Page3 extends LearningPage {
                     "f4g4f5f6g6g5",
                     "g4f4",
                     "f5f4",
-                    "g5f4"
-                ]
-            )
+                    "g5f4",
+                ],
+            ),
         };
     }
 }

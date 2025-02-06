@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -14,10 +14,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-
 .ModerateUser {
     width: 40rem;
+
+    .header {
+        display: inline-flex;
+        flex-direction: row;
+
+        h1 {
+            flex-grow: 1;
+        }
+    }
 
     input[type='number'] {
         width: 4rem;
@@ -33,14 +40,17 @@
         dt {
             width: 70%;
         }
+
         dd {
             width: 30%;
         }
     }
+
     dl.horizontal.right {
         dt {
             width: 40%;
         }
+
         dd {
             width: 60%;
             text-align: left;
@@ -49,5 +59,10 @@
 
     #ui-class-extra {
         width: 5rem;
+    }
+
+    // We'll probably lay these out better when there are more of them.
+    .avoid-wrap {
+        font-size: smaller;
     }
 }

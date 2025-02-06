@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,45 +16,32 @@
  */
 
 import * as React from "react";
-import ReactResizeDetector from 'react-resize-detector';
-import {Link} from "react-router-dom";
-import {browserHistory} from "ogsHistory";
-import {_, pgettext, interpolate} from "translate";
-import {abort_requests_in_flight, post, get, put, del} from "requests";
-import {KBShortcut} from "KBShortcut";
-import {goban_view_mode, goban_view_squashed} from "Game";
-import {PersistentElement} from "PersistentElement";
-import {errorAlerter, errorLogger, dup, ignore} from "misc";
-import {longRankString, rankList} from "rank_utils";
-import {
-    Goban,
-    GoMath,
-    GobanCanvas,
-    GobanCanvasConfig,
-    PuzzlePlacementSetting,
-} from "goban";
-import {Markdown} from "Markdown";
-import {Player} from "Player";
-import {StarRating} from "StarRating";
-import {Resizable} from "Resizable";
-import * as preferences from "preferences";
-import * as data from "data";
-import {TransformSettings, PuzzleTransform} from './PuzzleTransform';
-import {PuzzleNavigation} from './PuzzleNavigation';
-import {PuzzleEditor} from './PuzzleEditing';
-import {MoveTree} from 'goban';
+import { Link } from "react-router-dom";
+import { RouteComponentProps, rr6ClassShim } from "@/lib/ogs-rr6-shims";
+import { browserHistory } from "@/lib/ogsHistory";
+import { _, pgettext, interpolate } from "@/lib/translate";
+import { post, put, del } from "@/lib/requests";
+import { KBShortcut } from "@/components/KBShortcut";
+import { goban_view_mode, goban_view_squashed } from "@/views/Game";
+import { errorAlerter, errorLogger, ignore } from "@/lib/misc";
+import { longRankString, rankList } from "@/lib/rank_utils";
+import { createGoban, GobanRenderer, GobanRendererConfig, PuzzlePlacementSetting } from "goban";
+import { Markdown } from "@/components/Markdown";
+import { Player } from "@/components/Player";
+import { StarRating } from "@/components/StarRating";
+import { Resizable } from "@/components/Resizable";
+import * as preferences from "@/lib/preferences";
+import * as data from "@/lib/data";
+import { TransformSettings, PuzzleTransform } from "./PuzzleTransform";
+import { PuzzleNavigation } from "./PuzzleNavigation";
+import { PuzzleEditor, getAllPuzzleCollections } from "./PuzzleEditing";
+import { GobanContainer } from "@/components/GobanContainer";
+import { alert } from "@/lib/swal_config";
 
-declare var swal;
+type PuzzleProperties = RouteComponentProps<{ puzzle_id: string }>;
+type TransformationOptions = "x" | "h" | "v" | "color" | "zoom";
 
-interface PuzzleProperties {
-    match: {
-        params: {
-            puzzle_id: string
-        }
-    };
-}
-
-interface PuzzleState {
+export interface PuzzleState {
     puzzle?: any;
     show_wrong?: boolean;
     show_correct?: boolean;
@@ -93,31 +80,27 @@ interface PuzzleState {
     label_positioning: string;
 }
 
-let ranks = rankList(0, 38, false);
+const ranks = rankList(0, 38, false);
 
-export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
-    refs: {
-        goban;
-        goban_container;
-        next_link;
+export class _Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
+    ref_goban_container = React.createRef<HTMLDivElement>();
+    ref_collection = React.createRef<HTMLSelectElement>();
+    ref_name = React.createRef<HTMLInputElement>();
+    ref_puzzle_type = React.createRef<HTMLSelectElement>();
 
-        collection;
-        name;
-        puzzle_type;
-    };
-    ref_move_tree_container: HTMLElement;
+    ref_move_tree_container?: HTMLElement;
 
-    ref_transform_x_button: React.RefObject<HTMLButtonElement>;
-    ref_transform_h_button: React.RefObject<HTMLButtonElement>;
-    ref_transform_v_button: React.RefObject<HTMLButtonElement>;
-    ref_transform_color_button: React.RefObject<HTMLButtonElement>;
-    ref_transform_zoom_button: React.RefObject<HTMLButtonElement>;
-    ref_settings_button: React.RefObject<HTMLButtonElement>;
-    ref_edit_button: React.RefObject<HTMLButtonElement>;
-    ref_hint_button: React.RefObject<HTMLButtonElement>;
-    ref_toggle_coordinates_button: React.RefObject<HTMLButtonElement>;
+    ref_transform_x_button: React.RefObject<HTMLButtonElement | null>;
+    ref_transform_h_button: React.RefObject<HTMLButtonElement | null>;
+    ref_transform_v_button: React.RefObject<HTMLButtonElement | null>;
+    ref_transform_color_button: React.RefObject<HTMLButtonElement | null>;
+    ref_transform_zoom_button: React.RefObject<HTMLButtonElement | null>;
+    ref_settings_button: React.RefObject<HTMLButtonElement | null>;
+    ref_edit_button: React.RefObject<HTMLButtonElement | null>;
+    ref_hint_button: React.RefObject<HTMLButtonElement | null>;
+    ref_toggle_coordinates_button?: React.RefObject<HTMLButtonElement | null>;
 
-    goban: Goban;
+    goban!: GobanRenderer;
     goban_div: HTMLDivElement;
     goban_opts: any = {};
     solve_time_start: number = Date.now();
@@ -126,13 +109,15 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
     transform = new PuzzleTransform(new TransformSettings());
     navigation = new PuzzleNavigation();
     editor: PuzzleEditor;
+    next_link: React.RefObject<HTMLAnchorElement | null>;
 
     set_analyze_tool: any = {};
 
-    constructor(props) {
+    constructor(props: PuzzleProperties) {
         super(props);
 
-        this.editor  = new PuzzleEditor(this, this.transform);
+        this.editor = new PuzzleEditor(this, this.transform);
+        this.next_link = React.createRef<HTMLAnchorElement>();
 
         this.state = {
             view_mode: goban_view_mode(),
@@ -157,14 +142,14 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
             label_positioning: preferences.get("label-positioning-puzzles"),
         };
 
-        this.ref_transform_x_button = React.createRef<HTMLButtonElement>();
-        this.ref_transform_h_button = React.createRef<HTMLButtonElement>();
-        this.ref_transform_v_button = React.createRef<HTMLButtonElement>();
-        this.ref_transform_color_button = React.createRef<HTMLButtonElement>();
-        this.ref_transform_zoom_button = React.createRef<HTMLButtonElement>();
-        this.ref_settings_button = React.createRef<HTMLButtonElement>();
-        this.ref_edit_button = React.createRef<HTMLButtonElement>();
-        this.ref_hint_button = React.createRef<HTMLButtonElement>();
+        this.ref_transform_x_button = React.createRef<HTMLButtonElement | null>();
+        this.ref_transform_h_button = React.createRef<HTMLButtonElement | null>();
+        this.ref_transform_v_button = React.createRef<HTMLButtonElement | null>();
+        this.ref_transform_color_button = React.createRef<HTMLButtonElement | null>();
+        this.ref_transform_zoom_button = React.createRef<HTMLButtonElement | null>();
+        this.ref_settings_button = React.createRef<HTMLButtonElement | null>();
+        this.ref_edit_button = React.createRef<HTMLButtonElement | null>();
+        this.ref_hint_button = React.createRef<HTMLButtonElement | null>();
 
         this.goban_div = document.createElement("div");
         this.goban_div.className = "Goban";
@@ -181,20 +166,25 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
             label_cross: this.setAnalyzeTool.bind(this, "label", "cross"),
             label_letters: this.setAnalyzeTool.bind(this, "label", "letters"),
             label_numbers: this.setAnalyzeTool.bind(this, "label", "numbers"),
-            draw: () => { this.setAnalyzeTool("draw", this.state.analyze_pencil_color); },
-            clear_and_sync: () => { this.goban.syncReviewMove({"clearpen": true}); this.goban.clearAnalysisDrawing(); },
-            delete_branch: () => { this.deleteBranch(); },
+            draw: () => {
+                this.setAnalyzeTool("draw", this.state.analyze_pencil_color);
+            },
+            clear_and_sync: () => {
+                this.goban.syncReviewMove({ clearpen: true });
+                this.goban.clearAnalysisDrawing();
+            },
+            delete_branch: () => {
+                this.deleteBranch();
+            },
         };
-
     }
 
     componentDidMount() {
         window.document.title = _("Puzzle");
         this.fetchPuzzle(parseInt(this.props.match.params.puzzle_id));
-        this.onResize();
     }
-    UNSAFE_componentWillReceiveProps(next_props) {
-        if (this.props.match.params.puzzle_id !== next_props.match.params.puzzle_id) {
+    componentDidUpdate(prev_props: PuzzleProperties) {
+        if (this.props.match.params.puzzle_id !== prev_props.match.params.puzzle_id) {
             this.reinitialize();
             this.setState({
                 loaded: false,
@@ -203,46 +193,24 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
                 show_wrong: false,
                 editing: false,
             });
-            this.fetchPuzzle(parseInt(next_props.match.params.puzzle_id));
+            this.fetchPuzzle(parseInt(this.props.match.params.puzzle_id));
         }
     }
-    componentWillUnmount() {
-    }
-    componentDidUpdate() {
-        this.onResize();
-    }
-    onResize = (no_debounce?: boolean) => {
-        if (!this.refs.goban_container) {
-            return;
-        }
-
-        if (goban_view_mode() !== this.state.view_mode || goban_view_squashed() !== this.state.squashed) {
+    onResize = () => {
+        const squashed = goban_view_squashed();
+        const view_mode = goban_view_mode();
+        if (this.state.squashed !== squashed || this.state.view_mode !== view_mode) {
             this.setState({
                 squashed: goban_view_squashed(),
                 view_mode: goban_view_mode(),
             });
         }
-
-        if (this.goban) {
-            this.goban.setSquareSizeBasedOnDisplayWidth(
-                Math.min(this.refs.goban_container.offsetWidth, this.refs.goban_container.offsetHeight)
-            );
-
-            this.recenterGoban();
-        }
-    }
-    recenterGoban() {
-        let m = this.goban.computeMetrics();
-        $(this.refs.goban_container).css({
-            top: Math.ceil(this.refs.goban_container.offsetHeight - m.height) / 2,
-            left: Math.ceil(this.refs.goban_container.offsetWidth - m.width) / 2,
-        });
-    }
+    };
     reinitialize() {
         if (this.goban) {
             this.goban.destroy();
-            this.goban = null;
-            this.navigation.goban = null;
+            this.goban = null as any;
+            this.navigation.goban = null as any;
         }
         while (this.goban_div.firstChild) {
             this.goban_div.removeChild(this.goban_div.firstChild);
@@ -250,13 +218,13 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
         this.editor.clearPuzzles();
     }
 
-    setAnalyzeTool(tool, subtool) {
+    setAnalyzeTool(tool: string, subtool: string | null | undefined) {
         if (this.navigation.checkAndEnterAnalysis()) {
-            $("#game-analyze-button-bar .active").removeClass("active");
-            $("#game-analyze-" + tool + "-tool").addClass("active");
+            document.querySelector("#game-analyze-button-bar .active")?.classList.remove("active");
+            document.querySelector(`#game-analyze-${tool}-tool`)?.classList.add("active");
             switch (tool) {
                 case "draw":
-                    this.goban.setAnalyzeTool(tool, this.state.analyze_pencil_color);
+                    this.goban.setAnalyzeTool(tool, this.state.analyze_pencil_color as string);
                     break;
                 case "erase":
                     console.log("Erase not supported yet");
@@ -279,45 +247,50 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
     }
 
     fetchPuzzle(puzzleId: number) {
-        this.editor.fetchPuzzle(
-            puzzleId,
-            (state, editing) => {
-                this.reset(editing);
-                this.setState(state);
-                this.onResize(true);
-                window.document.title = state.collection.name + ": " + state.name;
-                data.set(`puzzle.collection.${state.collection.id}.last-visited`, state.id);
-                this.solve_time_start = Date.now();
-                this.attempts = 1;
-            }
-        );
+        this.editor.fetchPuzzle(puzzleId, (state, editing) => {
+            this.reset(editing);
+            this.setState(state);
+            window.document.title = state.collection.name + ": " + state.name;
+            data.set(`puzzle.collection.${state.collection.id}.last-visited`, state.id);
+            this.solve_time_start = Date.now();
+            this.attempts = 1;
+        });
     }
 
     replacementSettingFunction(): PuzzlePlacementSetting {
         if (this.state.edit_step === "setup") {
             return {
-                "mode": "setup",
-                "color": this.state.setup_color === "black" ? 1 : 2,
+                mode: "setup",
+                color: this.state.setup_color === "black" ? 1 : 2,
             };
         }
         if (this.state.edit_step === "moves") {
-            this.setState({show_warning: true});
+            this.setState({ show_warning: true });
             return {
-                "mode": "place",
-                "color": 0,
+                mode: "place",
+                color: 0,
             };
         }
+
+        throw new Error("Invalid edit step");
     }
 
     reset(editing?: boolean) {
-        let opts:GobanCanvasConfig = this.editor.reset(this.goban_div, editing, this.replacementSettingFunction.bind(this));
+        const opts: GobanRendererConfig = this.editor.reset(
+            this.goban_div,
+            !!editing,
+            this.replacementSettingFunction.bind(this),
+        );
 
         opts.move_tree_container = this.ref_move_tree_container;
         this.goban_opts = opts;
 
-        this.goban = new Goban(opts);
+        if (this.goban) {
+            this.goban.destroy();
+        }
+        this.goban = createGoban(opts);
         this.goban.setMode("puzzle");
-        window["global_goban"] = this.goban;
+        window.global_goban = this.goban;
         this.goban.on("update", () => this.onUpdate());
 
         this.goban.on("puzzle-wrong-answer", this.onWrongAnswer);
@@ -334,18 +307,23 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
 
     removeHints() {
         if (this.goban) {
-            let move = this.goban.engine.cur_move;
-            move.branches.forEach(item => this.goban.deleteCustomMark(item.x, item.y, "hint", true));
+            const move = this.goban.engine.cur_move;
+            move.branches.forEach((item) =>
+                this.goban.deleteCustomMark(item.x, item.y, "hint", true),
+            );
         }
-        this.setState({hintsOn: false});
+        this.setState({ hintsOn: false });
     }
 
     sync_state() {
-        let new_state: any = {};
+        const new_state: any = {};
 
         new_state.analyze_tool = this.goban.analyze_tool;
         new_state.analyze_subtool = this.goban.analyze_subtool;
-        new_state.move_text = this.goban.engine.cur_move && this.goban.engine.cur_move.text ? this.goban.engine.cur_move.text : "";
+        new_state.move_text =
+            this.goban.engine.cur_move && this.goban.engine.cur_move.text
+                ? this.goban.engine.cur_move.text
+                : "";
 
         this.setState(new_state);
     }
@@ -355,33 +333,33 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
             show_wrong: true,
         });
         this.attempts++;
-    }
+    };
     onCorrectAnswer = () => {
         post(`puzzles/${this.props.match.params.puzzle_id}/solutions`, {
-            'time_elapsed': Date.now() - this.solve_time_start,
-            'flipped_horizontally': this.transform.settings.transform_h,
-            'flipped_vertically':this.transform.settings.transform_v,
-            'transposed': this.transform.settings.transform_x,
-            'colors_swapped':this.transform.settings.transform_color,
-            'attempts': this.attempts,
-            'solution': this.goban.engine.cur_move.getMoveStringToThisPoint(),
+            time_elapsed: Date.now() - this.solve_time_start,
+            flipped_horizontally: this.transform.settings.transform_h,
+            flipped_vertically: this.transform.settings.transform_v,
+            transposed: this.transform.settings.transform_x,
+            colors_swapped: this.transform.settings.transform_color,
+            attempts: this.attempts,
+            solution: this.goban.engine.cur_move.getMoveStringToThisPoint(),
         })
-            .then(response => console.log(response))
+            .then((response) => console.log(response))
             .catch(errorLogger);
         this.setState({
             show_correct: true,
             show_wrong: false,
         });
         setTimeout(() => {
-            let position = $(window).scrollTop();
-            $(this.refs.next_link).focus();
-            $(window).scrollTop(position);
+            const position = window.pageYOffset;
+            (this.next_link.current as HTMLElement)?.focus();
+            window.scrollTo(0, position);
         }, 1);
-    }
-    jumpToPuzzle = (ev) => {
-        let next_puzzle_id = ev.target.value;
+    };
+    jumpToPuzzle = (ev: React.ChangeEvent<HTMLSelectElement>) => {
+        const next_puzzle_id = ev.target.value;
         browserHistory.push(`/puzzle/${next_puzzle_id}`);
-    }
+    };
     undo = () => {
         this.setState({
             show_correct: false,
@@ -389,62 +367,60 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
         });
 
         this.goban.showPrevious();
-
-        this.onResize();
-    }
+    };
     doReset = () => {
         this.reset();
         this.setState({
             show_correct: false,
             show_wrong: false,
         });
-        this.onResize();
-    }
+    };
 
-    ratePuzzle = (value) => {
-        put("puzzles/%%/rate", +this.props.match.params.puzzle_id, {rating: value})
+    ratePuzzle = (value: number) => {
+        put(`puzzles/${this.props.match.params.puzzle_id}/rate`, { rating: value })
             .then(ignore)
             .catch(errorAlerter);
         this.setState({
             rated: true,
             my_rating: value,
         });
-    }
-    setTransformation(what): void {
-        let state = this.transform.stateForTransformation(what);
+    };
+    setTransformation(what: TransformationOptions): void {
+        const state = this.transform.stateForTransformation(what);
         if (state) {
-            this.setState(state);
+            this.setState(state as any);
             if (state.zoom) {
                 preferences.set("puzzle.zoom", this.transform.settings.zoom);
             }
         }
         this.doReset();
     }
+
     toggle_transform_x = () => {
-        this.ref_transform_x_button.current.blur();
+        this.ref_transform_x_button.current?.blur();
         this.setTransformation("x");
-    }
+    };
     toggle_transform_h = () => {
-        this.ref_transform_h_button.current.blur();
+        this.ref_transform_h_button.current?.blur();
         this.setTransformation("h");
-    }
+    };
     toggle_transform_v = () => {
-        this.ref_transform_v_button.current.blur();
+        this.ref_transform_v_button.current?.blur();
         this.setTransformation("v");
-    }
+    };
     toggle_transform_color = () => {
-        this.ref_transform_color_button.current.blur();
+        this.ref_transform_color_button.current?.blur();
         this.setTransformation("color");
-    }
+    };
     toggle_transform_zoom = () => {
-        this.ref_transform_zoom_button.current.blur();
+        this.ref_transform_zoom_button.current?.blur();
         this.setTransformation("zoom");
-    }
+    };
 
     save = () => {
         //this.setState({editing: false})
 
-        let puzzle = this.goban.engine.exportAsPuzzle();
+        const puzzle = this.goban.engine.exportAsPuzzle();
         puzzle.name = this.state.name;
         puzzle.puzzle_description = this.state.puzzle.puzzle_description;
         puzzle.puzzle_collection = this.state.puzzle.puzzle_collection;
@@ -453,225 +429,246 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
         puzzle.puzzle_opponent_move_mode = this.state.puzzle.puzzle_opponent_move_mode;
         puzzle.puzzle_player_move_mode = this.state.puzzle.puzzle_player_move_mode;
 
-
         if (parseInt(this.props.match.params.puzzle_id)) {
             /* save */
-            put("puzzles/%%", +this.props.match.params.puzzle_id, {"puzzle": puzzle})
-                .then((res) => {
+            put(`puzzles/${this.props.match.params.puzzle_id}`, { puzzle: puzzle })
+                .then(() => {
                     window.location.reload();
                 })
                 .catch(errorAlerter);
         } else {
             /* create */
-            post("puzzles/", {"puzzle": puzzle})
-                .then((res) => {
+            post("puzzles/", { puzzle: puzzle })
+                .then(() => {
                     browserHistory.push(`/puzzle-collection/${puzzle.puzzle_collection}`);
                 })
                 .catch(errorAlerter);
         }
-    }
+    };
     edit = () => {
-        this.ref_edit_button.current.blur();
+        this.ref_edit_button.current?.blur();
 
-        get("puzzles/collections/", {page_size: 100, owner: data.get("user").id})
+        getAllPuzzleCollections(data.get("user").id)
             .then((collections) => {
                 this.setState({
                     editing: true,
-                    puzzle_collections: collections.results
+                    puzzle_collections: collections,
                 });
                 this.reset(true);
-                this.onResize();
             })
             .catch(errorAlerter);
-    }
+    };
 
-    openPuzzleSettings = (ev) => {
-        let puzzle_settings = openPuzzleSettingsControls(ev);
+    openPuzzleSettings = (ev: React.MouseEvent) => {
+        const puzzle_settings = openPuzzleSettingsControls(ev);
 
-        let randomize_transform = preferences.get("puzzle.randomize.transform");
-        let randomize_color = preferences.get("puzzle.randomize.color");
+        const randomize_transform = preferences.get("puzzle.randomize.transform");
+        const randomize_color = preferences.get("puzzle.randomize.color");
 
-        this.ref_settings_button.current.blur();
+        this.ref_settings_button.current?.blur();
 
         puzzle_settings.on("close", () => {
-            if (randomize_transform !== preferences.get("puzzle.randomize.transform")  ||
+            if (
+                randomize_transform !== preferences.get("puzzle.randomize.transform") ||
                 randomize_color !== preferences.get("puzzle.randomize.color")
             ) {
                 this.fetchPuzzle(parseInt(this.props.match.params.puzzle_id));
             }
         });
-    }
+    };
 
-    setPuzzleCollection = (ev) => {
+    setPuzzleCollection = (ev: React.ChangeEvent<HTMLSelectElement>) => {
         if (parseInt(ev.target.value) > 0) {
-            this.setState({puzzle: Object.assign({}, this.state.puzzle, {puzzle_collection: parseInt(ev.target.value)})});
-        }
-        else if (ev.target.value === "new") {
-            swal({
-                text: _("Collection name"),
-                input: "text",
-                showCancelButton: true,
-            })
-                .then((name) => {
-                    if (!name || name.length < 5) {
-                        swal({ "text": _("Please provide a longer name for your new puzzle collection") })
-                            .then(ignore).catch(ignore);
-                        return;
-                    }
-
-                    this.editor.createPuzzleCollection(this.state.puzzle, name)
-                        .then((state) => this.setState(state))
-                        .catch(errorAlerter);
+            this.setState({
+                puzzle: Object.assign({}, this.state.puzzle, {
+                    puzzle_collection: parseInt(ev.target.value),
+                }),
+            });
+        } else if (ev.target.value === "new") {
+            void alert
+                .fire({
+                    text: _("Collection name"),
+                    input: "text",
+                    showCancelButton: true,
+                    inputValidator: (name): string | void => {
+                        if (!name || name.length < 5) {
+                            return _("Please provide a longer name for your new puzzle collection");
+                        }
+                    },
                 })
-                .catch(ignore);
+                .then(({ value: name, isConfirmed }) => {
+                    if (isConfirmed) {
+                        this.editor
+                            .createPuzzleCollection(this.state.puzzle, name)
+                            .then((state) => this.setState(state))
+                            .catch(errorAlerter);
+                    }
+                });
         }
-    }
+    };
     setSetupStep = () => {
-        this.setState({edit_step: "setup"});
-    }
+        this.setState({ edit_step: "setup" });
+    };
     setMovesStep = () => {
         if (!this.validateSetup()) {
-            this.setState({edit_step: "setup"});
+            this.setState({ edit_step: "setup" });
             return;
         }
 
-        this.setState({edit_step: "moves"});
+        this.setState({ edit_step: "moves" });
         setTimeout(() => {
             this.goban.move_tree_redraw();
         }, 1);
-    }
+    };
     validateSetup = () => {
         if (!(this.state.puzzle.puzzle_collection > 0)) {
-            this.refs.collection.focus();
+            this.ref_collection.current?.focus();
             return false;
         }
-        if (this.state.name.length < 5) {
-            this.refs.name.focus();
+        if ((this.state.name?.length ?? 0) < 5) {
+            this.ref_name.current?.focus();
             return false;
         }
-        if (!(this.state.puzzle.puzzle_type)) {
-            this.refs.puzzle_type.focus();
+        if (!this.state.puzzle.puzzle_type) {
+            this.ref_puzzle_type.current?.focus();
             return false;
         }
         return true;
-    }
-    setName = (ev) => {
+    };
+    setName = (ev: React.ChangeEvent<HTMLInputElement>) => {
         this.setState({ name: ev.target.value });
-    }
-    setPuzzleType = (ev) => {
-        this.setState({puzzle: Object.assign({}, this.state.puzzle, {puzzle_type: ev.target.value})});
-    }
-    setDescription = (ev) => {
-        this.setState({puzzle: Object.assign({}, this.state.puzzle, {puzzle_description: ev.target.value})});
-    }
-    setSetupColor = (color) => {
+    };
+    setPuzzleType = (ev: React.ChangeEvent<HTMLSelectElement>) => {
+        this.setState({
+            puzzle: Object.assign({}, this.state.puzzle, { puzzle_type: ev.target.value }),
+        });
+    };
+    setDescription = (ev: React.ChangeEvent<HTMLTextAreaElement>) => {
+        this.setState({
+            puzzle: Object.assign({}, this.state.puzzle, { puzzle_description: ev.target.value }),
+        });
+    };
+    setSetupColor = (color: string) => {
         this.navigation.checkAndEnterPuzzleMode();
-        this.setState({setup_color: color});
-    }
-    setPuzzleSize = (ev) => {
-        let size = parseInt(ev.target.value);
-        this.setState({puzzle: Object.assign({}, this.state.puzzle, {width: size, height: size})});
+        this.setState({ setup_color: color });
+    };
+    setPuzzleSize = (ev: React.ChangeEvent<HTMLSelectElement>) => {
+        const size = parseInt(ev.target.value);
+        this.setState({
+            puzzle: Object.assign({}, this.state.puzzle, { width: size, height: size }),
+        });
         this.goban_opts.width = size;
         this.goban_opts.height = size;
         this.goban.load(this.goban_opts);
         this.goban.redraw(true);
-    }
-    setPuzzleRank = (ev) => {
-        this.setState({puzzle: Object.assign({}, this.state.puzzle, {puzzle_rank: parseInt(ev.target.value)})});
-    }
-    setInitialPlayer = (ev) => {
-        let color = ev.target.value;
+    };
+    setPuzzleRank = (ev: React.ChangeEvent<HTMLSelectElement>) => {
+        this.setState({
+            puzzle: Object.assign({}, this.state.puzzle, {
+                puzzle_rank: parseInt(ev.target.value),
+            }),
+        });
+    };
+    setInitialPlayer = (ev: React.ChangeEvent<HTMLSelectElement>) => {
+        const color = ev.target.value;
 
         this.goban.engine.jumpTo(this.goban.engine.move_tree);
-        this.goban.engine.config.initial_player = color;
+        this.goban.engine.config.initial_player = color === "black" ? "black" : "white";
         this.goban.engine.player = color === "white" ? 2 : 1;
         this.goban.engine.resetMoveTree();
 
-        this.setState({puzzle: Object.assign({}, this.state.puzzle, {initial_player: color})});
-    }
-    setOpponentMoveMode = (ev) => {
-        this.setState({puzzle: Object.assign({}, this.state.puzzle, {puzzle_opponent_move_mode: ev.target.value})});
-    }
-    setPlayerMoveMode = (ev) => {
-        this.setState({puzzle: Object.assign({}, this.state.puzzle, {puzzle_player_move_mode: ev.target.value})});
-    }
+        this.setState({ puzzle: Object.assign({}, this.state.puzzle, { initial_player: color }) });
+    };
+    setOpponentMoveMode = (ev: React.ChangeEvent<HTMLSelectElement>) => {
+        this.setState({
+            puzzle: Object.assign({}, this.state.puzzle, {
+                puzzle_opponent_move_mode: ev.target.value,
+            }),
+        });
+    };
+    setPlayerMoveMode = (ev: React.ChangeEvent<HTMLSelectElement>) => {
+        this.setState({
+            puzzle: Object.assign({}, this.state.puzzle, {
+                puzzle_player_move_mode: ev.target.value,
+            }),
+        });
+    };
     deleteBranch = () => {
         this.goban.deleteBranch();
-    }
-    updateMoveText = (ev) => {
-        this.setState({move_text: ev.target.value});
+    };
+    updateMoveText = (ev: React.ChangeEvent<HTMLTextAreaElement>) => {
+        this.setState({ move_text: ev.target.value });
         this.goban.engine.cur_move.text = ev.target.value;
         this.goban.move_tree_redraw();
         //this.goban.syncReviewMove(null, ev.target.value);
-    }
+    };
 
     setCorrectAnswer = () => {
         this.goban.engine.cur_move.wrong_answer = false;
         this.goban.engine.cur_move.correct_answer = !this.goban.engine.cur_move.correct_answer;
         this.goban.move_tree_redraw();
         this.forceUpdate();
-    }
+    };
     setIncorrectAnswer = () => {
         this.goban.engine.cur_move.correct_answer = false;
         this.goban.engine.cur_move.wrong_answer = !this.goban.engine.cur_move.wrong_answer;
         this.goban.move_tree_redraw();
         this.forceUpdate();
-    }
+    };
     deletePuzzle = () => {
-        swal({
-            "text": _("Are you sure you want to delete this puzzle?"),
-            showCancelButton: true,
-        })
-            .then(() => {
-                del("puzzles/%%", +this.props.match.params.puzzle_id)
-                    .then(() => browserHistory.push(`/puzzle-collection/${this.state.puzzle.puzzle_collection}`))
-                    .catch(errorAlerter);
+        void alert
+            .fire({
+                text: _("Are you sure you want to delete this puzzle?"),
+                showCancelButton: true,
             })
-            .catch(ignore);
-    }
+            .then(({ value: accept }) => {
+                if (accept) {
+                    del(`puzzles/${this.props.match.params.puzzle_id}`)
+                        .then(() =>
+                            browserHistory.push(
+                                `/puzzle-collection/${this.state.puzzle.puzzle_collection}`,
+                            ),
+                        )
+                        .catch(errorAlerter);
+                }
+            });
+    };
 
     showHint = () => {
-        this.ref_hint_button.current.blur();
+        this.ref_hint_button.current?.blur();
 
         if (this.state.hintsOn) {
             this.removeHints();
         } else if (!this.goban.engine.cur_move.correct_answer) {
-            let branches = this.goban.engine.cur_move.findBranchesWithCorrectAnswer();
-            branches.forEach(branch => {
+            const branches = this.goban.engine.cur_move.findBranchesWithCorrectAnswer();
+            branches.forEach((branch) => {
                 this.goban.setCustomMark(branch.x, branch.y, "hint", true);
             });
-            this.setState({hintsOn: true});
+            this.setState({ hintsOn: true });
         }
-    }
-    setMoveTreeContainer = (resizable:Resizable):void => {
-        this.ref_move_tree_container = resizable ? resizable.div : null;
-        if (this.goban) {
-            (this.goban as GobanCanvas).setMoveTreeContainer(this.ref_move_tree_container);
+    };
+    setMoveTreeContainer = (resizable: Resizable): void => {
+        this.ref_move_tree_container = resizable?.div ? resizable.div : undefined;
+        if (this.goban && this.ref_move_tree_container) {
+            (this.goban as GobanRenderer).setMoveTreeContainer(this.ref_move_tree_container);
         }
-    }
+    };
     toggleCoordinates = () => {
-        let goban = this.goban;
+        const goban = this.goban;
 
         let label_position = preferences.get("label-positioning-puzzles");
         switch (label_position) {
-            case "all": label_position = "none"; break;
-            //case "none": label_position = "top-left"; break;
-            //case "top-left": label_position = "top-right"; break;
-            //case "top-right": label_position = "bottom-right"; break;
-            //case "bottom-right": label_position = "bottom-left"; break;
-            //case "bottom-left": label_position = "all"; break;
-            default: label_position = "all";
+            case "all":
+                label_position = "none";
+                break;
+            default:
+                label_position = "all";
         }
         preferences.set("label-positioning-puzzles", label_position);
 
-        goban.draw_top_labels = label_position === "all" || label_position.indexOf("top") >= 0;
-        goban.draw_left_labels = label_position === "all" || label_position.indexOf("left") >= 0;
-        goban.draw_right_labels = label_position === "all" || label_position.indexOf("right") >= 0;
-        goban.draw_bottom_labels = label_position === "all" || label_position.indexOf("bottom") >= 0;
-        this.setState({"label_positioning": label_position});
-        this.onResize(true);
-        goban.redraw(true);
-    }
+        goban.setLabelPosition(label_position);
+        this.setState({ label_positioning: label_position });
+    };
 
     render() {
         if (this.state.editing) {
@@ -682,14 +679,12 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
     }
     renderPlay() {
         if (!this.state.loaded) {
-            return <div/>;
+            return <div />;
         }
 
-        let view_mode = this.state.view_mode;
-        let squashed = this.state.squashed;
-        let puzzle = this.state;
-        let goban = this.goban;
-        let difficulty = longRankString(puzzle.rank);
+        const view_mode = this.state.view_mode;
+        const squashed = this.state.squashed;
+        const goban = this.goban;
 
         let show_correct = this.state.show_correct;
         if (this.goban.engine.move_tree.findBranchesWithCorrectAnswer().length === 0) {
@@ -699,88 +694,102 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
             show_correct = true;
         }
 
-
-        const have_content:boolean =
-            show_correct
-            || this.state.show_wrong
-            || !!goban.engine.cur_move.text
-            || (!goban.engine.cur_move.parent && !!goban.engine.puzzle_description)
-        ;
-
+        const have_content: boolean =
+            show_correct ||
+            this.state.show_wrong ||
+            !!goban.engine.cur_move.text ||
+            (!goban.engine.cur_move.parent && !!goban.engine.puzzle_description);
         return (
             <div className={`Puzzle ${view_mode} ${squashed ? "squashed" : ""}`}>
-            <KBShortcut shortcut="escape" action={this.doReset} />
-            <KBShortcut shortcut="left" action={this.undo} />
+                <KBShortcut shortcut="escape" action={this.doReset} />
+                <KBShortcut shortcut="left" action={this.undo} />
 
-            <div className={"center-col"}>
-            <div ref="goban_container" className="goban-container">
-            <ReactResizeDetector handleWidth handleHeight onResize={() => this.onResize()} />
-            <PersistentElement className="Goban" elt={this.goban_div}/>
-            </div>
-            </div>
-
-            {((view_mode !== "portrait") || null) &&
-                <div className={"right-col"}>
-                {this.frag_puzzle_info()}
-
-                {this.frag_layout_buttons()}
-
-                <hr/>
-
-                {this.frag_undo_reset_buttons()}
-
-                {(have_content || null) && this.frag_puzzle_content()}
+                <div className={"center-col"}>
+                    <GobanContainer goban={goban} onResize={this.onResize} />
                 </div>
-            }
-            {((view_mode === "portrait") || null) &&
+
+                {(view_mode !== "portrait" || null) && (
                     <div className={"right-col"}>
-                    {this.frag_layout_buttons()}
+                        {this.frag_puzzle_info()}
 
-                    <hr/>
+                        {this.frag_layout_buttons()}
 
-                    {this.frag_undo_reset_buttons()}
+                        <hr />
 
-                {(have_content || null) && this.frag_puzzle_content()}
+                        {this.frag_undo_reset_buttons()}
 
-                {this.frag_puzzle_info()}
+                        {(have_content || null) && this.frag_puzzle_content()}
                     </div>
-            }
+                )}
+                {(view_mode === "portrait" || null) && (
+                    <div className={"right-col"}>
+                        {this.frag_layout_buttons()}
+
+                        <hr />
+
+                        {this.frag_undo_reset_buttons()}
+
+                        {(have_content || null) && this.frag_puzzle_content()}
+
+                        {this.frag_puzzle_info()}
+                    </div>
+                )}
             </div>
         );
     }
     frag_puzzle_info() {
-        let puzzle = this.state;
-        let difficulty = longRankString(puzzle.rank);
+        const puzzle = this.state;
+        const difficulty = longRankString(puzzle.rank || 0);
 
         return (
             <dl className="horizontal">
-            <dt>{_("Puzzle")}</dt>
-            <dd>
-            <select value={this.props.match.params.puzzle_id} onChange={this.jumpToPuzzle} id="selected_puzzle" >
-            {this.state.puzzle_collection_summary.map((puzzle, idx) => (
-                <option key={idx} value={puzzle.id}>{puzzle.name}</option>
-            ))}
-            </select>
-            </dd>
-            <dt>{_("Collection")}</dt>
-            <dd>{puzzle.collection.name}</dd>
-            <dt>{_("Difficulty")}</dt>
-            <dd>{difficulty}</dd>
-            <dt>{_("Rating")}</dt>
-            <dd><StarRating value={this.state.rated ? this.state.my_rating : this.state.rating} rated={this.state.rated} onChange={this.ratePuzzle} /></dd>
-            <dt>{_("Author")}</dt>
-            <dd><Player user={this.state.owner} icon rank /></dd>
+                <dt>{_("Puzzle")}</dt>
+                <dd>
+                    <select
+                        value={this.props.match.params.puzzle_id}
+                        onChange={this.jumpToPuzzle}
+                        id="selected_puzzle"
+                    >
+                        {this.state.puzzle_collection_summary.map((puzzle, idx) => (
+                            <option key={idx} value={puzzle.id}>
+                                {puzzle.name}
+                            </option>
+                        ))}
+                    </select>
+                </dd>
+                <dt>{_("Collection")}</dt>
+                <dd>{puzzle.collection.name}</dd>
+                <dt>{_("Difficulty")}</dt>
+                <dd>{difficulty}</dd>
+                <dt>{_("Rating")}</dt>
+                <dd>
+                    <StarRating
+                        value={
+                            this.state.rated ? this.state.my_rating : (this.state.rating as number)
+                        }
+                        rated={this.state.rated}
+                        onChange={this.ratePuzzle}
+                    />
+                </dd>
+                <dt>{_("Author")}</dt>
+                <dd>
+                    <Player user={this.state.owner} icon rank />
+                </dd>
             </dl>
         );
     }
     frag_layout_buttons() {
-        let puzzle = this.state;
+        const puzzle = this.state;
 
         return (
             <div className="btn-container">
                 <div className="btn-group">
-                    <button type="button"
-                        title={pgettext("Transform the stone positions in a puzzle", "Flip diagonally")}
+                    <button
+                        type="button"
+                        title={pgettext(
+                            "Transform the stone positions in a puzzle",
+                            "Flip diagonally",
+                        )}
                         className={this.state.transform_x ? "active" : ""}
                         disabled={!this.state.collection.position_transform_enabled}
                         onClick={this.toggle_transform_x}
@@ -788,8 +797,12 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
                     >
                         <i className="fa fa-expand"></i>
                     </button>
-                    <button type="button"
-                        title={pgettext("Transform the stone positions in a puzzle", "Flip horizontally")}
+                    <button
+                        type="button"
+                        title={pgettext(
+                            "Transform the stone positions in a puzzle",
+                            "Flip horizontally",
+                        )}
                         className={this.state.transform_h ? "active" : ""}
                         disabled={!this.state.collection.position_transform_enabled}
                         onClick={this.toggle_transform_h}
@@ -797,8 +810,12 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
                     >
                         <i className="fa fa-arrows-h"></i>
                     </button>
-                    <button type="button"
-                        title={pgettext("Transform the stone positions in a puzzle", "Flip vertically")}
+                    <button
+                        type="button"
+                        title={pgettext(
+                            "Transform the stone positions in a puzzle",
+                            "Flip vertically",
+                        )}
                         className={this.state.transform_v ? "active" : ""}
                         disabled={!this.state.collection.position_transform_enabled}
                         onClick={this.toggle_transform_v}
@@ -806,67 +823,100 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
                     >
                         <i className="fa fa-arrows-v"></i>
                     </button>
-                    <button type="button"
-                        title={pgettext("Transform the colors of the stones in a puzzle", "Reverse colors")}
+                    <button
+                        type="button"
+                        title={pgettext(
+                            "Transform the colors of the stones in a puzzle",
+                            "Reverse colors",
+                        )}
                         className={this.state.transform_color ? "active" : ""}
                         disabled={!this.state.collection.color_transform_enabled}
                         onClick={this.toggle_transform_color}
                         ref={this.ref_transform_color_button}
                     >
-                        <i className="fa fa-adjust"/>
+                        <i className="fa fa-adjust" />
                     </button>
-                    {(this.state.zoomable || null) &&
-                        <button type="button"
-                            title={pgettext("Toggle zoom when viewing a puzzle (whole board or only some stones)", "Toggle zoom")}
+                    {(this.state.zoomable || null) && (
+                        <button
+                            type="button"
+                            title={pgettext(
+                                "Toggle zoom when viewing a puzzle (whole board or only some stones)",
+                                "Toggle zoom",
+                            )}
                             className={this.state.zoom ? "active" : ""}
                             onClick={this.toggle_transform_zoom}
                             ref={this.ref_transform_zoom_button}
                         >
                             <i className="fa fa-arrows-alt"></i>
                         </button>
-                    }
+                    )}
 
-                    <button type="button"
-                        title={pgettext("Show or hide coordinates when viewing a puzzle", "Toggle coordinates")}
+                    <button
+                        type="button"
+                        title={pgettext(
+                            "Show or hide coordinates when viewing a puzzle",
+                            "Toggle coordinates",
+                        )}
                         className={this.state.label_positioning === "all" ? "active" : ""}
                         onClick={this.toggleCoordinates}
                         ref={this.ref_toggle_coordinates_button}
-                        >
-                            <i className="ogs-coordinates"></i>
+                    >
+                        <i className="ogs-coordinates"></i>
                     </button>
 
-                    <button type="button" title={_("Open puzzle settings")} onClick={this.openPuzzleSettings} ref={this.ref_settings_button}>
-                        <i className="fa fa-gear"/>
+                    <button
+                        type="button"
+                        title={_("Open puzzle settings")}
+                        onClick={this.openPuzzleSettings}
+                        ref={this.ref_settings_button}
+                    >
+                        <i className="fa fa-gear" />
                     </button>
 
-                    {(puzzle.owner.id === data.get("user").id || null) &&
+                    {(puzzle.owner.id === data.get("user").id || null) && (
                         <button title={_("Edit")} onClick={this.edit} ref={this.ref_edit_button}>
-                        <i className="fa fa-pencil"></i>
+                            <i className="fa fa-pencil"></i>
                         </button>
-                    }
-                    <button type="button" className={this.state.hintsOn ? "active" : ""} onClick={this.showHint} ref={this.ref_hint_button}>
-                        {pgettext("Recieve a puzzle hint", "Hint")}
+                    )}
+                    <button
+                        type="button"
+                        className={this.state.hintsOn ? "active" : ""}
+                        onClick={this.showHint}
+                        ref={this.ref_hint_button}
+                    >
+                        {pgettext("Receive a puzzle hint", "Hint")}
                     </button>
                 </div>
             </div>
         );
     }
     frag_undo_reset_buttons() {
-        let goban = this.goban;
+        const goban = this.goban;
 
         return (
-            <div style={{visibility: goban.engine.cur_move.parent ? "visible" : "hidden"}}>
-            <button className="btn btn-default" onClick={this.undo} ><i className="fa fa-step-backward"></i> {_("Undo")}</button>
-            <button className="btn btn-warning pull-right" onClick={this.doReset} ><i className="fa fa-refresh"></i> {_("Reset")}</button>
+            <div style={{ visibility: goban.engine.cur_move.parent ? "visible" : "hidden" }}>
+                <button className="btn btn-default" onClick={this.undo}>
+                    <i className="fa fa-step-backward"></i> {_("Undo")}
+                </button>
+                <button className="btn btn-warning pull-right" onClick={this.doReset}>
+                    <i className="fa fa-refresh"></i> {_("Reset")}
+                </button>
             </div>
         );
     }
     frag_puzzle_content() {
-        let puzzle = this.state;
-        let goban = this.goban;
-        let show_correct = this.state.show_correct;
+        const puzzle = this.state;
+        const goban = this.goban;
+        const show_correct = this.state.show_correct;
 
         let next_id = 0;
+        const ids = this.state.puzzle_collection_summary
+            .map((p) => p.id)
+            .filter((id) => id !== puzzle.id);
+        let random_id = 0;
+        if (ids.length > 0) {
+            random_id = ids[Math.floor(Math.random() * ids.length)];
+        }
         for (let i = 0; i < this.state.puzzle_collection_summary.length - 1; ++i) {
             if (this.state.puzzle_collection_summary[i].id === puzzle.id) {
                 next_id = this.state.puzzle_collection_summary[i + 1].id;
@@ -874,75 +924,81 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
         }
 
         return (
-            <div className='puzzle-node-content'>
-            {(show_correct || null) &&
-                <div className='success'>
-                <i className="fa fa-check-circle-o"></i> {_("Correct!")}
-                </div>
-            }
+            <div className="puzzle-node-content">
+                {(show_correct || null) && (
+                    <Link to={next_id ? `/puzzle/${next_id}` : `#`} className="success">
+                        <i className="fa fa-check-circle-o"></i> {_("Correct!")}
+                    </Link>
+                )}
 
-            {(this.state.show_wrong || null) &&
-                    <div className='incorrect'>
-                    <i className="fa fa-times-circle-o reject-text"></i> {_("Incorrect")}
+                {(this.state.show_wrong || null) && (
+                    <div className="incorrect">
+                        <i className="fa fa-times-circle-o reject-text"></i> {_("Incorrect")}
                     </div>
-            }
+                )}
 
-            <div className='content'>
-            {(goban.engine.cur_move.parent == null || null) &&
-                <Markdown source={goban.engine.puzzle_description} />
-            }
-            {(goban.engine.cur_move.text || null) &&
-                    <Markdown source={goban.engine.cur_move.text} />
-            }
-            </div>
-
-            {(show_correct || null) &&
-                <div className='actions'>
-                {(next_id !== 0 && next_id !== puzzle.id || null) &&
-                    <Link ref="next_link" to={`/puzzle/${next_id}`} className="btn primary">{_("Next")}</Link>
-                }
-                {(next_id === 0 || null) &&
-                        <div>
-                        <h3>{_("You have reached the end of this collection")}</h3>
-                        <Link to="/puzzles/" className="primary">{_("Back to Puzzle List")}</Link>
-                        </div>
-                }
+                <div className="content">
+                    {(goban.engine.cur_move.parent == null || null) && (
+                        <Markdown source={goban.engine.puzzle_description} />
+                    )}
+                    {(goban.engine.cur_move.text || null) && (
+                        <Markdown source={goban.engine.cur_move.text} />
+                    )}
                 </div>
-            }
+
+                {(show_correct || null) && (
+                    <div className="actions">
+                        {(random_id !== 0 || null) && (
+                            <Link
+                                ref={this.next_link}
+                                to={`/puzzle/${random_id}`}
+                                className="btn danger"
+                            >
+                                {_("Random")}
+                            </Link>
+                        )}
+                        {((next_id !== 0 && next_id !== puzzle.id) || null) && (
+                            <Link
+                                ref={this.next_link}
+                                to={`/puzzle/${next_id}`}
+                                className="btn primary"
+                            >
+                                {_("Next")}
+                            </Link>
+                        )}
+                        {(next_id === 0 || null) && (
+                            <div>
+                                <h3>{_("You have reached the end of this collection")}</h3>
+                                <Link to="/puzzles/" className="primary">
+                                    {_("Back to Puzzle List")}
+                                </Link>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         );
     }
     renderEdit() {
         if (!this.state.loaded) {
-            return <div/>;
+            return <div />;
         }
 
-        let view_mode = this.state.view_mode;
-        let squashed = this.state.squashed;
-        let puzzle = this.state;
-        let goban = this.goban;
-        let difficulty = longRankString(puzzle.rank);
-        let show_warning = false;
-
-        let next_id = 0;
-        for (let i = 0; i < this.state.puzzle_collection_summary.length - 1; ++i) {
-            if (this.state.puzzle_collection_summary[i].id === puzzle.id) {
-                next_id = this.state.puzzle_collection_summary[i + 1].id;
-            }
-        }
+        const view_mode = this.state.view_mode;
+        const squashed = this.state.squashed;
 
         return (
             <div className={`Puzzle ${view_mode} ${squashed ? "squashed" : ""}`}>
-            <KBShortcut shortcut="up" action={this.navigation.nav_up}/>
-            <KBShortcut shortcut="down" action={this.navigation.nav_down}/>
-            <KBShortcut shortcut="left" action={this.navigation.nav_prev}/>
-            <KBShortcut shortcut="right" action={this.navigation.nav_next}/>
-            <KBShortcut shortcut="page-up" action={this.navigation.nav_prev_10}/>
-            <KBShortcut shortcut="page-down" action={this.navigation.nav_next_10}/>
-            <KBShortcut shortcut="home" action={this.navigation.nav_first}/>
-            <KBShortcut shortcut="end" action={this.navigation.nav_last}/>
+                <KBShortcut shortcut="up" action={this.navigation.nav_up} />
+                <KBShortcut shortcut="down" action={this.navigation.nav_down} />
+                <KBShortcut shortcut="left" action={this.navigation.nav_prev} />
+                <KBShortcut shortcut="right" action={this.navigation.nav_next} />
+                <KBShortcut shortcut="page-up" action={this.navigation.nav_prev_10} />
+                <KBShortcut shortcut="page-down" action={this.navigation.nav_next_10} />
+                <KBShortcut shortcut="home" action={this.navigation.nav_first} />
+                <KBShortcut shortcut="end" action={this.navigation.nav_last} />
 
-            {/*
+                {/*
             <KBShortcut shortcut="f1" action={this.set_analyze_tool.stone_null}/>
             <KBShortcut shortcut="f2" action={this.set_analyze_tool.stone_black}/>
             <KBShortcut shortcut="f4" action={this.set_analyze_tool.label_triangle}/>
@@ -951,206 +1007,399 @@ export class Puzzle extends React.Component<PuzzleProperties, PuzzleState> {
             <KBShortcut shortcut="f7" action={this.set_analyze_tool.label_letters}/>
             <KBShortcut shortcut="f8" action={this.set_analyze_tool.label_numbers}/>
               */}
-            <KBShortcut shortcut="del" action={this.set_analyze_tool.delete_branch}/>
+                <KBShortcut shortcut="del" action={this.set_analyze_tool.delete_branch} />
 
-
-            <div className={"center-col"}>
-            <div ref="goban_container" className="goban-container">
-            <PersistentElement className="Goban" elt={this.goban_div}/>
-            </div>
-            </div>
-            <div className={"right-col"}>
-
-            <div className="btn-group">
-            <button className={this.state.edit_step === "setup" ? "active" : ""} onClick={this.setSetupStep}>{_("Setup")}</button>
-            <button className={this.state.edit_step === "moves" ? "active" : ""} onClick={this.setMovesStep}>{_("Moves")}</button>
-            </div>
-
-            {(this.state.edit_step === "setup" || null) &&
-                <div>
-
-                <div className="space-around padded">
-                <select ref="collection" value={this.state.puzzle.puzzle_collection} onChange={this.setPuzzleCollection}>
-                <option value={0}> -- {_("Select collection")} -- </option>
-                {this.state.puzzle_collections.map((e, idx) => (
-                    <option key={idx} value={e.id}>{e.name}</option>
-                ))}
-                <option value={"new"}> -- {_("Create collection")} -- </option>
-                </select>
+                <div className={"center-col"}>
+                    <GobanContainer goban={this.goban} onResize={this.onResize} />
                 </div>
-
-                <div className="padded">
-                <input ref="name" type="text" value={this.state.name} onChange={this.setName} placeholder={_("Puzzle name")}></input>
-                </div>
-
-                <div className="padded">
-                <div className="space-around">
-                <select ref="puzzle_type" value={this.state.puzzle.puzzle_type} onChange={this.setPuzzleType}>
-                <option value="">-- {_("Type")} --</option>
-                <option value="life_and_death">{_("Life and Death")}</option>
-                <option value="joseki">{_("Joseki")}</option>
-                <option value="fuseki">{_("Fuseki")}</option>
-                <option value="tesuji">{_("Tesuji")}</option>
-                <option value="best_move">{_("Best Move")}</option>
-                <option value="endgame">{_("End Game")}</option>
-                <option value="elementary">{_("Elementary")}</option>
-                </select>
-
-                <select value={this.state.puzzle.width} onChange={this.setPuzzleSize}>
-                <option value={19}>{_("19x19")}</option>
-                <option value={17}>{_("17x17")}</option>
-                <option value={15}>{_("15x15")}</option>
-                <option value={13}>{_("13x13")}</option>
-                <option value={11}>{_("11x11")}</option>
-                <option value={9}>{_("9x9")}</option>
-                <option value={7}>{_("7x7")}</option>
-                <option value={5}>{_("5x5")}</option>
-                </select>
-
-                <select value={this.state.puzzle.puzzle_rank} onChange={this.setPuzzleRank}>
-                {ranks.map((e, idx) => (
-                    <option key={idx} value={e.rank}>{e.label}</option>
-                ))}
-                </select>
-                </div>
-                </div>
-                <div className="padded">
-                <textarea rows={7} value={this.state.puzzle.puzzle_description} onChange={this.setDescription}
-                placeholder={_("Describe the objective of this problem")}></textarea>
-                </div>
-
-                <dl className="horizontal">
-                <dt>{_("Place stones")}</dt>
-                <dd>
-                <div className="btn-group">
-                <button onClick={this.setSetupColor.bind(this, "black")} className={this.state.setup_color === "black" ? "active" : ""}>
-                <img width="16px" height="16px" alt="black" src={data.get("config.cdn_release") + "/img/black.png"}/>
-                </button>
-                <button onClick={this.setSetupColor.bind(this, "white")} className={this.state.setup_color === "white" ? "active" : ""}>
-                <img width="16px" height="16px" alt="white" src={data.get("config.cdn_release") + "/img/white.png"}/>
-                </button>
-                </div>
-                </dd>
-
-                <dt>{_("Player color")}</dt>
-                <dd>
-                <select value={this.state.puzzle.initial_player} onChange={this.setInitialPlayer}>
-                <option value="black">{_("Black")}</option>
-                <option value="white">{_("White")}</option>
-                </select>
-                </dd>
-
-                <dt>{interpolate(pgettext("Puzzle move mode for specified color", "{{color}} move mode"),
-                    {"color": this.state.puzzle.initial_player === "black" ? _("Black") : _("White")})}</dt>
-                <dd>
-                <select value={this.state.puzzle.puzzle_player_move_mode} onChange={this.setPlayerMoveMode}>
-                <option value="free">{_("Free placement")}</option>
-                <option value="fixed">{_("Only allow on specified paths")}</option>
-                </select>
-                </dd>
-
-                <dt>{interpolate(pgettext("Puzzle move mode for specified color", "{{color}} move mode"),
-                    {"color": this.state.puzzle.initial_player === "black" ? _("White") : _("Black")})}</dt>
-                <dd>
-                <select value={this.state.puzzle.puzzle_opponent_move_mode} onChange={this.setOpponentMoveMode}>
-                <option value="automatic">{_("Automatic")}</option>
-                <option value="manual">{_("Player controlled")}</option>
-                </select>
-                </dd>
-                </dl>
-
-                <div className="space-around">
-                {(this.props.match.params.puzzle_id !== "new" || null) &&
-                    <button className="reject" onClick={this.deletePuzzle}>{_("Remove puzzle")}</button>
-                }
-                <button className="primary" onClick={this.setMovesStep}>{_("Next")} &rarr;</button>
-                </div>
-                </div>
-            }
-            {(this.state.edit_step === "moves" || null) &&
-                    <div>
-                    <div className="padded space-between">
-                    <button onClick={this.set_analyze_tool.stone_alternate}
-                className={"stone-button " + ((this.state.analyze_tool === "stone" && (this.state.analyze_subtool !== "black" && this.state.analyze_subtool !== "white")) ? "active" : "")}>
-                    <img alt="alternate" width="16px" height="16px" src={data.get("config.cdn_release") + "/img/black-white.png"}/>
-                    </button>
-
-
+                <div className={"right-col"}>
                     <div className="btn-group">
-                    <button onClick={this.set_analyze_tool.label_letters}
-                className={(this.state.analyze_tool === "label" && this.state.analyze_subtool === "letters") ? "active" : ""}>
-                    <i className="fa fa-font"></i>
-                    </button>
-                    <button onClick={this.set_analyze_tool.label_numbers}
-                className={(this.state.analyze_tool === "label" && this.state.analyze_subtool === "numbers") ? "active" : ""}>
-                    <i className="ogs-label-number"></i>
-                    </button>
-                    <button onClick={this.set_analyze_tool.label_triangle}
-                className={(this.state.analyze_tool === "label" && this.state.analyze_subtool === "triangle") ? "active" : ""}>
-                    <i className="ogs-label-triangle"></i>
-                    </button>
-                    <button onClick={this.set_analyze_tool.label_square}
-                className={(this.state.analyze_tool === "label" && this.state.analyze_subtool === "square") ? "active" : ""}>
-                    <i className="ogs-label-square"></i>
-                    </button>
-                    <button onClick={this.set_analyze_tool.label_circle}
-                className={(this.state.analyze_tool === "label" && this.state.analyze_subtool === "circle") ? "active" : ""}>
-                    <i className="ogs-label-circle"></i>
-                    </button>
-                    <button onClick={this.set_analyze_tool.label_cross}
-                className={(this.state.analyze_tool === "label" && this.state.analyze_subtool === "cross") ? "active" : ""}>
-                    <i className="ogs-label-x"></i>
-                    </button>
+                        <button
+                            className={this.state.edit_step === "setup" ? "active" : ""}
+                            onClick={this.setSetupStep}
+                        >
+                            {_("Setup")}
+                        </button>
+                        <button
+                            className={this.state.edit_step === "moves" ? "active" : ""}
+                            onClick={this.setMovesStep}
+                        >
+                            {_("Moves")}
+                        </button>
                     </div>
 
-                    <button onClick={this.deleteBranch}>
-                    <i className="fa fa-trash"></i>
-                    </button>
-                    </div>
+                    {(this.state.edit_step === "setup" || null) && (
+                        <div>
+                            <div className="space-around padded">
+                                <select
+                                    ref={this.ref_collection}
+                                    value={this.state.puzzle.puzzle_collection}
+                                    onChange={this.setPuzzleCollection}
+                                >
+                                    <option value={0}> -- {_("Select collection")} -- </option>
+                                    {this.state.puzzle_collections.map((e: any, idx: number) => (
+                                        <option key={idx} value={e.id}>
+                                            {e.name}
+                                        </option>
+                                    ))}
+                                    <option value={"new"}> -- {_("Create collection")} -- </option>
+                                </select>
+                            </div>
 
-                    <Resizable id="move-tree-container" className="vertically-resizable" ref={this.setMoveTreeContainer} />
+                            <div className="padded">
+                                <input
+                                    ref={this.ref_name}
+                                    type="text"
+                                    value={this.state.name}
+                                    onChange={this.setName}
+                                    placeholder={_("Puzzle name")}
+                                ></input>
+                            </div>
 
-                    <textarea id="game-move-node-text" placeholder={_("Move notes")}
-                rows={5}
-                value={this.state.move_text}
-                onChange={this.updateMoveText}
-                    ></textarea>
+                            <div className="padded">
+                                <div className="space-around">
+                                    <select
+                                        ref={this.ref_puzzle_type}
+                                        value={this.state.puzzle.puzzle_type}
+                                        onChange={this.setPuzzleType}
+                                    >
+                                        <option value="">-- {_("Type")} --</option>
+                                        <option value="life_and_death">
+                                            {_("Life and Death")}
+                                        </option>
+                                        <option value="joseki">{_("Joseki")}</option>
+                                        <option value="fuseki">{_("Fuseki")}</option>
+                                        <option value="tesuji">{_("Tesuji")}</option>
+                                        <option value="best_move">{_("Best Move")}</option>
+                                        <option value="endgame">{_("End Game")}</option>
+                                        <option value="elementary">{_("Elementary")}</option>
+                                    </select>
 
+                                    <select
+                                        value={this.state.puzzle.width}
+                                        onChange={this.setPuzzleSize}
+                                    >
+                                        <option value={19}>{_("19x19")}</option>
+                                        <option value={17}>{_("17x17")}</option>
+                                        <option value={15}>{_("15x15")}</option>
+                                        <option value={13}>{_("13x13")}</option>
+                                        <option value={11}>{_("11x11")}</option>
+                                        <option value={9}>{_("9x9")}</option>
+                                        <option value={7}>{_("7x7")}</option>
+                                        <option value={5}>{_("5x5")}</option>
+                                        <option value={4}>{_("4x4")}</option>
+                                    </select>
 
-                    <div className="space-around padded">
-                    <button className={(this.goban.engine.cur_move.correct_answer ? " success" : "")} onClick={this.setCorrectAnswer} >
-                    {_("Correct answer") /* translators: Correct puzzle move */}
-                    </button>
+                                    <select
+                                        value={this.state.puzzle.puzzle_rank}
+                                        onChange={this.setPuzzleRank}
+                                    >
+                                        {ranks.map((e, idx) => (
+                                            <option key={idx} value={e.rank}>
+                                                {e.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="padded">
+                                <textarea
+                                    rows={7}
+                                    value={this.state.puzzle.puzzle_description}
+                                    onChange={this.setDescription}
+                                    placeholder={_("Describe the objective of this problem")}
+                                ></textarea>
+                            </div>
 
-                    <button className={(this.goban.engine.cur_move.wrong_answer ? " reject" : "")} onClick={this.setIncorrectAnswer} >
-                    {_("Wrong answer") /* translators: Correct puzzle move */}
-                    </button>
-                    </div>
+                            <dl className="horizontal">
+                                <dt>{_("Place stones")}</dt>
+                                <dd>
+                                    <div className="btn-group">
+                                        <button
+                                            onClick={this.setSetupColor.bind(this, "black")}
+                                            className={
+                                                this.state.setup_color === "black" ? "active" : ""
+                                            }
+                                        >
+                                            <img
+                                                width="16px"
+                                                height="16px"
+                                                alt="black"
+                                                src={
+                                                    data.get("config.cdn_release") +
+                                                    "/img/black.png"
+                                                }
+                                            />
+                                        </button>
+                                        <button
+                                            onClick={this.setSetupColor.bind(this, "white")}
+                                            className={
+                                                this.state.setup_color === "white" ? "active" : ""
+                                            }
+                                        >
+                                            <img
+                                                width="16px"
+                                                height="16px"
+                                                alt="white"
+                                                src={
+                                                    data.get("config.cdn_release") +
+                                                    "/img/white.png"
+                                                }
+                                            />
+                                        </button>
+                                    </div>
+                                </dd>
 
+                                <dt>{_("Player color")}</dt>
+                                <dd>
+                                    <select
+                                        value={this.state.puzzle.initial_player}
+                                        onChange={this.setInitialPlayer}
+                                    >
+                                        <option value="black">{_("Black")}</option>
+                                        <option value="white">{_("White")}</option>
+                                    </select>
+                                </dd>
 
-                    <div className="space-around">
-                    <button onClick={this.setSetupStep}>&larr; {_("Setup")}</button>
-                    <button className="primary" onClick={this.save}>{_("Save")}</button>
-                    </div>
-                    </div>
-            }
-            </div>
+                                <dt>
+                                    {interpolate(
+                                        pgettext(
+                                            "Puzzle move mode for specified color",
+                                            "{{color}} move mode",
+                                        ),
+                                        {
+                                            color:
+                                                this.state.puzzle.initial_player === "black"
+                                                    ? _("Black")
+                                                    : _("White"),
+                                        },
+                                    )}
+                                </dt>
+                                <dd>
+                                    <select
+                                        value={this.state.puzzle.puzzle_player_move_mode}
+                                        onChange={this.setPlayerMoveMode}
+                                    >
+                                        <option value="free">{_("Free placement")}</option>
+                                        <option value="fixed">
+                                            {_("Only allow on specified paths")}
+                                        </option>
+                                    </select>
+                                </dd>
+
+                                <dt>
+                                    {interpolate(
+                                        pgettext(
+                                            "Puzzle move mode for specified color",
+                                            "{{color}} move mode",
+                                        ),
+                                        {
+                                            color:
+                                                this.state.puzzle.initial_player === "black"
+                                                    ? _("White")
+                                                    : _("Black"),
+                                        },
+                                    )}
+                                </dt>
+                                <dd>
+                                    <select
+                                        value={this.state.puzzle.puzzle_opponent_move_mode}
+                                        onChange={this.setOpponentMoveMode}
+                                    >
+                                        <option value="automatic">{_("Automatic")}</option>
+                                        <option value="manual">{_("Player controlled")}</option>
+                                    </select>
+                                </dd>
+                            </dl>
+
+                            <div className="space-around">
+                                {(this.props.match.params.puzzle_id !== "new" || null) && (
+                                    <button className="reject" onClick={this.deletePuzzle}>
+                                        {_("Remove puzzle")}
+                                    </button>
+                                )}
+                                <button className="primary" onClick={this.setMovesStep}>
+                                    {_("Next")} &rarr;
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                    {(this.state.edit_step === "moves" || null) && (
+                        <div>
+                            <div className="padded space-between">
+                                <button
+                                    onClick={this.set_analyze_tool.stone_alternate}
+                                    className={
+                                        "stone-button " +
+                                        (this.state.analyze_tool === "stone" &&
+                                        this.state.analyze_subtool !== "black" &&
+                                        this.state.analyze_subtool !== "white"
+                                            ? "active"
+                                            : "")
+                                    }
+                                >
+                                    <img
+                                        alt="alternate"
+                                        width="16px"
+                                        height="16px"
+                                        src={
+                                            data.get("config.cdn_release") + "/img/black-white.png"
+                                        }
+                                    />
+                                </button>
+
+                                <div className="btn-group">
+                                    <button
+                                        onClick={this.set_analyze_tool.label_letters}
+                                        className={
+                                            this.state.analyze_tool === "label" &&
+                                            this.state.analyze_subtool === "letters"
+                                                ? "active"
+                                                : ""
+                                        }
+                                    >
+                                        <i className="fa fa-font"></i>
+                                    </button>
+                                    <button
+                                        onClick={this.set_analyze_tool.label_numbers}
+                                        className={
+                                            this.state.analyze_tool === "label" &&
+                                            this.state.analyze_subtool === "numbers"
+                                                ? "active"
+                                                : ""
+                                        }
+                                    >
+                                        <i className="ogs-label-number"></i>
+                                    </button>
+                                    <button
+                                        onClick={this.set_analyze_tool.label_triangle}
+                                        className={
+                                            this.state.analyze_tool === "label" &&
+                                            this.state.analyze_subtool === "triangle"
+                                                ? "active"
+                                                : ""
+                                        }
+                                    >
+                                        <i className="ogs-label-triangle"></i>
+                                    </button>
+                                    <button
+                                        onClick={this.set_analyze_tool.label_square}
+                                        className={
+                                            this.state.analyze_tool === "label" &&
+                                            this.state.analyze_subtool === "square"
+                                                ? "active"
+                                                : ""
+                                        }
+                                    >
+                                        <i className="ogs-label-square"></i>
+                                    </button>
+                                    <button
+                                        onClick={this.set_analyze_tool.label_circle}
+                                        className={
+                                            this.state.analyze_tool === "label" &&
+                                            this.state.analyze_subtool === "circle"
+                                                ? "active"
+                                                : ""
+                                        }
+                                    >
+                                        <i className="ogs-label-circle"></i>
+                                    </button>
+                                    <button
+                                        onClick={this.set_analyze_tool.label_cross}
+                                        className={
+                                            this.state.analyze_tool === "label" &&
+                                            this.state.analyze_subtool === "cross"
+                                                ? "active"
+                                                : ""
+                                        }
+                                    >
+                                        <i className="ogs-label-x"></i>
+                                    </button>
+                                </div>
+
+                                <button onClick={this.deleteBranch}>
+                                    <i className="fa fa-trash"></i>
+                                </button>
+                            </div>
+
+                            <Resizable
+                                id="move-tree-container"
+                                className="vertically-resizable"
+                                ref={this.setMoveTreeContainer}
+                            />
+
+                            <textarea
+                                id="game-move-node-text"
+                                placeholder={_("Move notes")}
+                                rows={5}
+                                value={this.state.move_text}
+                                onChange={this.updateMoveText}
+                            ></textarea>
+
+                            <div className="space-around padded">
+                                <button
+                                    className={
+                                        this.goban.engine.cur_move.correct_answer ? " success" : ""
+                                    }
+                                    onClick={this.setCorrectAnswer}
+                                >
+                                    {_("Correct answer") /* translators: Correct puzzle move */}
+                                </button>
+
+                                <button
+                                    className={
+                                        this.goban.engine.cur_move.wrong_answer ? " reject" : ""
+                                    }
+                                    onClick={this.setIncorrectAnswer}
+                                >
+                                    {_("Wrong answer") /* translators: Correct puzzle move */}
+                                </button>
+                            </div>
+
+                            <div className="space-around">
+                                <button onClick={this.setSetupStep}>&larr; {_("Setup")}</button>
+                                <button className="primary" onClick={this.save}>
+                                    {_("Save")}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         );
     }
 }
 
+export const Puzzle = rr6ClassShim(_Puzzle);
 
-import {PopOver, popover} from "popover";
-import {PuzzleSettingsModal} from './PuzzleSettingsModal';
+import { PopOver, popover } from "@/lib/popover";
+import { PuzzleSettingsModal } from "./PuzzleSettingsModal";
 
-export function openPuzzleSettingsControls(ev): PopOver {
-    let elt = $(ev.target);
-    let offset = elt.offset();
+export function openPuzzleSettingsControls(ev: React.MouseEvent): PopOver {
+    const elt = ev.target;
+    if (!(elt instanceof HTMLElement)) {
+        return popover({
+            elt: <PuzzleSettingsModal />,
+            at: { x: 0, y: 0 },
+            minWidth: 300,
+            minHeight: 50,
+        });
+    }
+    const rect = elt.getBoundingClientRect();
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const offset = {
+        left: rect.left + scrollLeft,
+        top: rect.top + scrollTop,
+    };
+
+    if (!offset) {
+        throw new Error("No offset");
+    }
 
     return popover({
-        elt: (<PuzzleSettingsModal />),
-        at: {x: offset.left, y: offset.top + elt.height()},
+        elt: <PuzzleSettingsModal />,
+        at: { x: offset.left, y: offset.top + elt.offsetHeight },
         minWidth: 300,
         minHeight: 50,
     });

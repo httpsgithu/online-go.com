@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,33 +15,58 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {get_handicap_adjustment, effective_outcome, EffectiveOutcome} from 'rank_utils';
+import { effective_outcome, EffectiveOutcome } from "@/lib/rank_utils";
 
-export class RatingEntry {
+export interface IRatingEntry {
     ended: Date;
-    game_id:number;
-    played_black:boolean;
-    handicap:number;
-    rating:number;
-    deviation:number;
-    volatility:number;
-    opponent_id:number;
-    opponent_rating:number;
-    opponent_deviation:number;
-    outcome:number;
-    extra:any;
-    count:number;
-    starting_rating:number;
-    starting_deviation:number;
-    increase:boolean;
-    wins:number;
-    losses:number;
-    strong_wins:number;
-    strong_losses:number;
-    weak_wins:number;
-    weak_losses:number;
+    game_id: number;
+    played_black: boolean;
+    handicap: number;
+    rating: number;
+    deviation: number;
+    volatility: number;
+    opponent_id: number;
+    opponent_rating: number;
+    opponent_deviation: number;
+    outcome: number;
+    extra: any;
+    count: number;
+    starting_rating: number;
+    starting_deviation: number;
+    increase: boolean;
+    wins: number;
+    losses: number;
+    strong_wins: number;
+    strong_losses: number;
+    weak_wins: number;
+    weak_losses: number;
+}
 
-    constructor(obj) {
+export class RatingEntry implements IRatingEntry {
+    ended: Date;
+    game_id: number;
+    played_black: boolean;
+    handicap: number;
+    rating: number;
+    deviation: number;
+    volatility: number;
+    opponent_id: number;
+    opponent_rating: number;
+    opponent_deviation: number;
+    outcome: number;
+    extra: any;
+    count: number;
+    starting_rating: number;
+    starting_deviation: number;
+    increase: boolean;
+    wins: number;
+    losses: number;
+    strong_wins: number;
+    strong_losses: number;
+    weak_wins: number;
+    weak_losses: number;
+
+    constructor(obj: IRatingEntry) {
         this.ended = obj.ended;
         this.game_id = obj.game_id;
         this.played_black = obj.played_black;
@@ -70,7 +95,7 @@ export class RatingEntry {
         return new RatingEntry(this);
     }
 
-    merge(other:RatingEntry):RatingEntry {
+    merge(other: RatingEntry): RatingEntry {
         this.rating = other.rating;
         this.deviation = other.deviation;
         this.volatility = other.volatility;
@@ -86,48 +111,69 @@ export class RatingEntry {
     }
 }
 
-export function makeRatingEntry(d:any):RatingEntry {
-    let played_black = parseInt(d.played_black) === 1;
-    let rating = parseFloat(d.rating);
-    let opponent_rating = parseFloat(d.opponent_rating);
-    let handicap = parseInt(d.handicap);
+export function makeRatingEntry(d: any): RatingEntry {
+    const played_black = parseInt(d.played_black) === 1;
+    const rating = parseFloat(d.rating);
+    const opponent_rating = parseFloat(d.opponent_rating);
+    const handicap = parseInt(d.handicap);
     let won = parseInt(d.outcome);
     let lost = 1 - won;
-    let extra = JSON.parse(d.extra);
+    const extra = JSON.parse(d.extra);
 
     if (d.opponent_id <= 0) {
+        // the initial rating entry has an invalid id like this
+        won = 0;
         lost = 0;
     }
 
     let outcome: EffectiveOutcome;
     if (played_black) {
         outcome = effective_outcome(rating, opponent_rating, handicap);
-    }
-    else {
+    } else {
         outcome = effective_outcome(opponent_rating, rating, handicap);
     }
 
-    return new RatingEntry({
-        ended              : new Date(parseInt(d.ended) * 1000),
-        game_id            : parseInt(d.game_id),
-        played_black       : played_black,
-        handicap           : handicap,
-        rating             : parseFloat(d.rating),
-        deviation          : parseFloat(d.deviation),
-        starting_rating    : parseFloat(d.rating),
-        starting_deviation : parseFloat(d.deviation),
-        volatility         : parseFloat(d.volatility),
-        opponent_id        : parseInt(d.opponent_id),
-        opponent_rating    : parseFloat(d.oppponent_rating),
-        opponent_deviation : parseFloat(d.opponent_deviation),
-        outcome            : parseInt(d.outcome),
-        extra              : extra,
-        count              : d.opponent_id > 0 ? 1 : 0,
-        wins               : won,
-        losses             : lost,
-        strong_wins        : (played_black ? outcome.white_effective_stronger : outcome.black_effective_stronger) ? won : 0,
-        strong_losses      : (played_black ? outcome.white_effective_stronger : outcome.black_effective_stronger) ? lost : 0,
-        weak_wins          : (played_black ? outcome.black_effective_stronger : outcome.white_effective_stronger) ? won : 0,
-        weak_losses        : (played_black ? outcome.black_effective_stronger : outcome.white_effective_stronger) ? lost : 0,
+    const new_rating_entry = new RatingEntry({
+        ended: new Date(parseInt(d.ended) * 1000),
+        game_id: parseInt(d.game_id),
+        played_black: played_black,
+        handicap: handicap,
+        rating: parseFloat(d.rating),
+        deviation: parseFloat(d.deviation),
+        starting_rating: parseFloat(d.rating),
+        starting_deviation: parseFloat(d.deviation),
+        volatility: parseFloat(d.volatility),
+        opponent_id: parseInt(d.opponent_id),
+        opponent_rating: parseFloat(d.opponent_rating),
+        opponent_deviation: parseFloat(d.opponent_deviation),
+        outcome: parseInt(d.outcome),
+        extra: extra,
+        count: d.opponent_id > 0 ? 1 : 0,
+        wins: won,
+        losses: lost,
+        increase: won === 1,
+        strong_wins: (
+            played_black ? outcome.white_effective_stronger : outcome.black_effective_stronger
+        )
+            ? won
+            : 0,
+        strong_losses: (
+            played_black ? outcome.white_effective_stronger : outcome.black_effective_stronger
+        )
+            ? lost
+            : 0,
+        weak_wins: (
+            played_black ? outcome.black_effective_stronger : outcome.white_effective_stronger
+        )
+            ? won
+            : 0,
+        weak_losses: (
+            played_black ? outcome.black_effective_stronger : outcome.white_effective_stronger
+        )
+            ? lost
+            : 0,
     });
+
+    //console.log(new_rating_entry);
+    return new_rating_entry;
 }

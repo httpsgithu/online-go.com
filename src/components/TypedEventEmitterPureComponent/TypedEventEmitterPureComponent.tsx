@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,13 +16,15 @@
  */
 
 import * as React from "react";
-import * as data from "data";
-import {TypedEventEmitter} from "TypedEventEmitter";
+import { TypedEventEmitter } from "@/lib/TypedEventEmitter";
 
-export class TypedEventEmitterPureComponent<Events, Props, State> extends React.PureComponent<Props, State> {
-    event_emitter: TypedEventEmitter<Events>;
+export class TypedEventEmitterPureComponent<Events, Props, State> extends React.PureComponent<
+    Props,
+    State
+> {
+    event_emitter?: TypedEventEmitter<Events>;
 
-    constructor(props) {
+    constructor(props: Props | Readonly<Props>) {
         super(props);
     }
 
@@ -32,19 +34,28 @@ export class TypedEventEmitterPureComponent<Events, Props, State> extends React.
         }
         return false;
     }
-    on<K extends Extract<keyof Events, string>>(event: K, listener: (arg?: Events[K]) => any): this {
+    on<K extends Extract<keyof Events, string>>(
+        event: K,
+        listener: (arg?: Events[K]) => any,
+    ): this {
         this.__initialize_event_emitter();
-        this.event_emitter.on(event, listener);
+        this.event_emitter!.on(event, listener);
         return this;
     }
-    once<K extends Extract<keyof Events, string>>(event: K, listener: (arg?: Events[K]) => any): this {
+    once<K extends Extract<keyof Events, string>>(
+        event: K,
+        listener: (arg?: Events[K]) => any,
+    ): this {
         this.__initialize_event_emitter();
-        this.event_emitter.once(event, listener);
+        this.event_emitter!.once(event, listener);
         return this;
     }
-    off<K extends Extract<keyof Events, string>>(event: K, listener: (arg?: Events[K]) => any): this {
+    off<K extends Extract<keyof Events, string>>(
+        event: K,
+        listener: (arg?: Events[K]) => any,
+    ): this {
         this.__initialize_event_emitter();
-        this.event_emitter.off(event, listener);
+        this.event_emitter!.off(event, listener);
         return this;
     }
     removeAllListeners<K extends Extract<keyof Events, string>>(event?: K): this {

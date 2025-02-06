@@ -5,43 +5,43 @@
         "outDir": "./dist/",
         "target": "es2015",
         "moduleResolution": "node",
+        "isolatedModules": true,
+        "esModuleInterop": true,
         "removeComments": false,
         "emitDecoratorMetadata": true,
         "experimentalDecorators": true,
         "lib": ["es2015", "dom"],
         "baseUrl": ".",
         "paths": {
-            "*": [
-                "*",
-                "src/lib/*",
-                "src/components/*",
-                "src/views/*",
-                "src/data/*",
-                "src/compatibility/*",
-                "src/*"
-            ],
-            "requests": [
-                "src/lib/requests"
-            ]
+            "@/*": ["src/*"],
+            "goban": ["submodules/goban/src"],
+            "goscorer": ["submodules/goban/src/third_party/goscorer/goscorer"],
+            "react-dynamic-help": ["submodules/react-dynamic-help/src"]
         },
 
         "forceConsistentCasingInFileNames": true,
-        
-        "noImplicitAny": false,
-        "noImplicitReturns": false,
-        "noImplicitThis": false,
-        "strictBindCallApply": false,
-        "strictFunctionTypes": false,
-        "strictNullChecks": false,
-        "strictPropertyInitialization": false,
-        "noUnusedLocals": false,
-
         "allowSyntheticDefaultImports": true,
 
+        "noImplicitAny": true,
+        "noImplicitReturns": true,
+        "strictBindCallApply": true,
+        "strictFunctionTypes": true,
+        "strictNullChecks": true,
+        "strictPropertyInitialization": true,
+        "noUnusedLocals": true,
+
+        "noImplicitThis": false,
+
         "sourceMap": true,
-        "jsx": "react"
+        "jsx": "react",
+        "skipLibCheck": true
     },
     "files": [
-        "./src/main.tsx"
-    ]
+        "./src/main.tsx",
+        "typings_manual/index.d.ts",
+        "node_modules/jest-chain/types/index.d.ts",
+        "./vite.config.ts",
+    ],
+    "include": ["src"],
+    "exclude": ["node_modules", "dist"]
 }

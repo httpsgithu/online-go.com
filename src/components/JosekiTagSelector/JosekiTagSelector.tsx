@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,86 +16,52 @@
  */
 
 import * as React from "react";
+import { pgettext } from "@/lib/translate";
 
-import Select, { components } from 'react-select';
+import Select, { MultiValue } from "react-select";
 
-import { _, pgettext, interpolate } from "translate";
+export interface JosekiTag {
+    value: string;
+    label: string;
+}
 
 interface JosekiTagSelectorProps {
-    godojo_headers: any;
-    tag_list_url: string;
-    selected_tags: number[];
-    on_tag_update: any;
+    available_tags: JosekiTag[];
+    selected_tags: JosekiTag[];
+    on_tag_update: (new_value: MultiValue<JosekiTag>) => void;
 }
 
-export class JosekiTagSelector extends React.PureComponent<JosekiTagSelectorProps, any> {
-    constructor(props) {
-        super(props);
-        this.state = {
-            tag_list: [],
-            tag_map: {},
-        };
-    }
+export function JosekiTagSelector(props: JosekiTagSelectorProps) {
+    const onTagChange = (e: MultiValue<JosekiTag>) => {
+        props.on_tag_update(e);
+    };
 
-    componentDidMount = () => {
-        fetch(this.props.tag_list_url, {
-            mode: 'cors',
-            headers: this.props.godojo_headers
-        })
-        .then(res => res.json())
-        .then(body => {
-            // console.log("Server response to tag GET:", body);
-            const available_tags = body.tags.map((tag, i) => (
-                { label: tag.description, value: tag.id }
-            ));
-            let tag_map = {};
-            for (let tag of available_tags) {
-                tag_map[tag.value] = tag;
-            }
-            this.setState({
-                tag_list: available_tags,
-                tag_map: tag_map,
-            });
-        }).catch((r) => {
-            console.log("Tags GET failed:", r);
-        });
-    }
-
-    onTagChange = (e) => {
-        this.props.on_tag_update(e);
-    }
-
-    render() {
-        // console.log("Tag selector render");
-        // console.log("tags", this.state.tag_list);
-        // console.log("Selected tags: ", this.props.selected_tags);
-        // console.log("Tags list: ", this.state.tag_list);
-
-        return (
-            <Select
-                className="joseki-tag-selector"
-                classNamePrefix="ogs-react-select"
-                value={this.props.selected_tags}
-                options={this.state.tag_list}
-                isMulti={true}
-                onChange={this.onTagChange}
-                getOptionLabel={o => o.label}
-                getOptionValue={o => o.value}
-                components={{
-                    Option: ({innerRef, innerProps, isFocused, isSelected, data}) => (
-                        <div ref={innerRef} {...innerProps}
-                            className={(isFocused ? 'focused ' :'') + (isSelected ? 'selected' : '')}>
-                            {data.label}
-                        </div>
-                    ),
-                }}
-
-            />
-        );
-    }
+    return (
+        <Select
+            className="joseki-tag-selector"
+            classNamePrefix="ogs-react-select"
+            value={props.selected_tags}
+            options={props.available_tags}
+            isMulti={true}
+            onChange={onTagChange}
+            getOptionLabel={(o) => pgettext("This is a Joseki Tag", o.label)}
+            getOptionValue={(o) => o.value}
+            components={{
+                Option: ({ innerRef, innerProps, isFocused, isSelected, data }) => (
+                    <div
+                        ref={innerRef}
+                        {...innerProps}
+                        className={(isFocused ? "focused " : "") + (isSelected ? "selected" : "")}
+                    >
+                        {
+                            pgettext(
+                                "This is a Joseki Tag",
+                                data.label,
+                            ) /* translation of tag labels is forced in Joseki constructor */
+                        }
+                    </div>
+                ),
+            }}
+        />
+    );
 }
-
-const MultiValue = (props) => {
-    return <components.MultiValue {...props} key={props.data} />;
-};
-
