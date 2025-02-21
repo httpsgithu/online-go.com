@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,45 +16,63 @@
  */
 
 import * as React from "react";
-import * as preferences from "preferences";
-import { MAX_DOCK_DELAY } from 'Settings';
+import * as preferences from "@/lib/preferences";
+import { MAX_DOCK_DELAY } from "@/lib/SettingsCommon";
 
-export class Dock extends React.Component<any, any> {
-    constructor(props) {
+interface DockProperties {
+    className?: string;
+    children: React.ReactNode;
+}
+interface DockState {
+    dock_delay: number;
+}
+
+export class Dock extends React.Component<DockProperties, DockState> {
+    constructor(props: DockProperties) {
         super(props);
         this.state = {
-            dock_delay: preferences.get("dock-delay")
+            dock_delay: preferences.get("dock-delay"),
         };
     }
 
-    mouseEntered = (ev) => {
-        let delay = this.state.dock_delay;
-        if (delay === MAX_DOCK_DELAY) {
-            console.log("NO slide out");
-            delay = 99999;
-        }
-        // open dock at speed set by preference 'dock-delay'
-        let modified_transition = `all 0.1s ease-in ${delay}s`;
-        let dock = document.getElementsByClassName('Dock')[0] as HTMLElement;
-        // tested on Opera, Chrome, Safari, Edge, Firefox
-        dock.style.transition = modified_transition;
-        dock.style.webkitTransition = modified_transition;
-    }
+    mouseEntered = () => {
+        const dock = document.getElementsByClassName("Dock")[0] as HTMLElement;
+        dock.style.transition = this.getTransitionStyle();
+        dock.style.webkitTransition = this.getTransitionStyle();
+    };
 
-    mouseExited = (ev) => {
+    mouseExited = () => {
         // always close fast
-        let fast_transition = `all 0.1s ease-in 0s`;
-        let dock = document.getElementsByClassName('Dock')[0] as HTMLElement;
+        const fast_transition = `all 0.1s ease-in 0s`;
+        const dock = document.getElementsByClassName("Dock")[0] as HTMLElement;
         dock.style.transition = fast_transition;
         dock.style.webkitTransition = fast_transition;
-    }
+        setTimeout(() => {
+            dock.style.transition = this.getTransitionStyle();
+            dock.style.webkitTransition = this.getTransitionStyle();
+        }, 100);
+    };
+
+    getTransitionStyle = () => {
+        let delay = this.state.dock_delay;
+        if (delay === MAX_DOCK_DELAY) {
+            delay = 99999;
+        }
+        const modified_transition = `all 0.1s ease-in ${delay}s`;
+        return modified_transition;
+    };
 
     render() {
         return (
-            <div onMouseEnter={this.mouseEntered} onMouseLeave={this.mouseExited} {...this.props} className={"Dock" + (this.props.className || "")}>
+            <div
+                onMouseEnter={this.mouseEntered}
+                onMouseLeave={this.mouseExited}
+                {...this.props}
+                className={"Dock" + (this.props.className || "")}
+                style={{ transition: this.getTransitionStyle() }}
+            >
                 {this.props.children}
             </div>
         );
     }
 }
-

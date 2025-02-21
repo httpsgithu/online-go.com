@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,86 +16,84 @@
  */
 
 import * as React from "react";
-import {_, setCurrentLanguage, current_language, languages} from "translate";
-import {Modal, openModal} from "Modal";
-import * as preferences from "preferences";
+import { _, setCurrentLanguage, current_language, languages } from "@/lib/translate";
+import * as preferences from "@/lib/preferences";
+import { ModalContext, ModalTypes } from "@/components/ModalProvider";
 
-interface Events {
-}
-
-interface LanguagePickerProperties {
-}
-
-let language_modal = null;
-
-function openLanguageModal() {
-    language_modal = <LanguagePickerModal />;
-    openModal(language_modal);
-}
-
-function language_sorter(a, b) {
-    if (a === "auto") { return -1; }
-    if (b === "auto") { return 1; }
-    if (languages[a] < languages[b]) { return -1; }
-    if (languages[a] > languages[b]) { return 1; }
+function language_sorter(a: string, b: string) {
+    if (a === "auto") {
+        return -1;
+    }
+    if (b === "auto") {
+        return 1;
+    }
+    if (languages[a] < languages[b]) {
+        return -1;
+    }
+    if (languages[a] > languages[b]) {
+        return 1;
+    }
     return 0;
 }
 
-export let LanguagePicker = (props: LanguagePickerProperties) => (
-    <span className="LanguagePicker fakelink" onClick={openLanguageModal}>
-        <i className="fa fa-language"/>
-        {languages[current_language]}
-    </span>
-);
+export function LanguagePicker(): React.ReactElement {
+    const { showModal } = React.useContext(ModalContext);
 
-class LanguagePickerModal extends Modal<Events, LanguagePickerProperties, any> {
-    constructor(props) {
-        super(props);
-        this.state = {
-            selected_language: current_language
-        };
-    }
+    return (
+        <span
+            className="LanguagePicker fakelink"
+            onClick={() => showModal(ModalTypes.LanguagePicker)}
+        >
+            <i className="fa fa-language" />
+            {languages[current_language]}
+        </span>
+    );
+}
 
-    setLanguage(language_code) {
+export function LanguagePickerModal(): React.ReactElement {
+    const { hideModal } = React.useContext(ModalContext);
+
+    const setLanguage = (language_code: string) => {
         preferences.set("language", language_code);
         setCurrentLanguage(language_code);
-        this.close();
         window.location.reload();
-    }
+    };
 
-    render() {
-        let auto = preferences.get("language") === "auto";
-        function computeClass(lc) {
-            let ret = "";
-            if (auto) {
-                if (lc === "auto") {
-                    ret += "selected";
-                }
-                else if (lc === current_language) {
-                    ret += "auto";
-                }
-            } else {
-                if (lc === current_language) {
-                    ret += "selected";
-                }
+    const auto = preferences.get("language") === "auto";
+    function computeClass(lc: string) {
+        let ret = "";
+        if (auto) {
+            if (lc === "auto") {
+                ret += "selected";
+            } else if (lc === current_language) {
+                ret += "auto";
             }
-            return ret;
+        } else {
+            if (lc === current_language) {
+                ret += "selected";
+            }
         }
-
-        return (
-            <div className="Modal LanguagePickerModal">
-                <div className="body">
-                {
-                    Object.keys(languages).sort(language_sorter).map((lc, idx) => (
-                        <span key={idx} className={computeClass(lc) + " fakelink language-option"}
-                              onClick={() => this.setLanguage(lc)}>{languages[lc]}</span>
-                    ))
-                }
-                </div>
-                <div className="footer">
-                    <button onClick={this.close}>{_("Cancel")}</button>
-                </div>
-            </div>
-        );
+        return ret;
     }
+
+    return (
+        <div className="Modal LanguagePickerModal">
+            <div className="body">
+                {Object.keys(languages)
+                    .sort(language_sorter)
+                    .map((lc, idx) => (
+                        <span
+                            key={idx}
+                            className={computeClass(lc) + " fakelink language-option"}
+                            onClick={() => setLanguage(lc)}
+                        >
+                            {languages[lc]}
+                        </span>
+                    ))}
+            </div>
+            <div className="footer">
+                <button onClick={hideModal}>{_("Cancel")}</button>
+            </div>
+        </div>
+    );
 }

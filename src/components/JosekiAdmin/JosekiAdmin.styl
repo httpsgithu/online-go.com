@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2017  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -14,20 +14,21 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 .audit-container {
     flex-grow: 1;
-    flex-shrink:0;
-    flex-basis:auto;
+    flex-shrink: 0;
+    flex-basis: auto;
     display: flex;
     flex-direction: column;
 
+    .hide {
+        visibility: hidden;
+    }
+
     .audit-actions {
         flex-grow: 1;
-
         display: flex;
         justify-content: space-between;
-
         margin-top: 0.2rem;
         margin-bottom: 0.2rem;
 
@@ -42,6 +43,7 @@
                     max-width: 6em;
                 }
             }
+
             .audit-filter-overridden {
                 color: grey;
             }
@@ -49,26 +51,26 @@
     }
 
     .position-link {
-        themed color link-color;
+        themed: color link-color;
     }
 
     .position-link:hover {
-        cursor:pointer;
-        text-decoration:underline;
+        cursor: pointer;
+        text-decoration: underline;
     }
 
     .ReactTable, .ReactTable * {
-        themed border-color shade5 !important;
+        themed: border-color shade5 !important;
     }
 
     .pagination-bottom .-pagination {
         .-btn {
-            themed color fg;
-            themed background card-background-color;
+            themed: color fg;
+            themed: background card-background-color;
         }
 
         input, select {
-            themed background input-bg;
+            themed: background input-bg;
         }
     }
 
@@ -77,8 +79,8 @@
         justify-content: flex-end;
         align-items: center;
         padding: 3px;
-        button {
 
+        button {
         }
     }
 
@@ -96,7 +98,6 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-
             flex-grow: 1;
             margin-top: 5px;
             margin-right: 3px;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,191 +16,252 @@
  */
 
 import * as React from "react";
-import * as data from "data";
-import {Link} from "react-router-dom";
-import {_, pgettext, interpolate, cc_to_country_name} from "translate";
-import {post, get, put, del} from "requests";
-import {PaginatedTable} from "PaginatedTable";
-import {Card} from "material";
-import {UIPush} from "UIPush";
-import {errorAlerter} from "misc";
-import {Player} from "Player";
-import Datetime from "react-datetime";
-import * as moment from "moment";
+import * as data from "@/lib/data";
+import { _, interpolate, pgettext } from "@/lib/translate";
+import { post, get, del } from "@/lib/requests";
+import { PaginatedTable } from "@/components/PaginatedTable";
+import { Card } from "@/components/material";
+import { UIPush } from "@/components/UIPush";
+import { errorAlerter } from "@/lib/misc";
+import { Player } from "@/components/Player";
+import moment from "moment";
+//import { Announcement } from "@/components/Announcements";
+import { useUser } from "@/lib/hooks";
+import { Announcement } from "@/components/Announcements";
 
-declare var swal;
+moment.relativeTimeThreshold("m", 59);
 
-interface AnnouncementCenterProperties {
+const all_duration_options = [
+    900,
+    1800,
+    2700,
+    3600,
+    5400,
+    7200,
+    9000,
+    10800,
+    12600,
+    14400,
+    16200,
+    18000,
+    19800,
+    21600,
+
+    86400,
+    86400 * 2,
+    86400 * 3,
+    86400 * 5,
+    86400 * 6,
+    86400 * 7,
+];
+
+if (process.env.NODE_ENV === "development") {
+    all_duration_options.unshift(60);
+    all_duration_options.unshift(5);
 }
 
-const MAX_ANNOUNCEMENT_DURATION = 6 * 3600 * 1000; /* 6 hours */
+export function AnnouncementCenter(): React.ReactElement {
+    const user = useUser();
+    const [announcementType, setAnnouncementType] = React.useState(
+        user.is_superuser ? "system" : data.get("announcement.last-type", "stream"),
+    );
+    const [text, setText] = React.useState("");
+    const [link, setLink] = React.useState("");
+    //const [duration, setDuration] = React.useState(7200);
+    const [duration_idx, setDurationIdx] = React.useState(
+        data.get("announcement.last-duration", 4),
+    );
+    const duration_options = all_duration_options.filter((x) => x < 86400 || user.is_superuser);
+    const [announcements, setAnnouncements] = React.useState<any[]>([]);
 
-export class AnnouncementCenter extends React.PureComponent<AnnouncementCenterProperties, any> {
-
-    constructor(props) {
-        super(props);
-        let exp = new Date();
-        exp.setSeconds(exp.getSeconds() + 300);
-        let user = data.get('user');
-
-        this.state = {
-            announcements: [],
-            type: user.is_superuser ? "system" : data.get("announcement.last-type", "stream"),
-            expiration_date: exp,
-            expiration: moment(exp).toISOString(),
-            text: "",
-            link: "",
-        };
-    }
-
-    UNSAFE_componentWillMount() {
+    React.useEffect(() => {
         window.document.title = _("Announcement Center");
-        this.refresh();
-    }
+        refresh();
+    }, []);
 
-    setType = (ev) => {
-        this.setState({type: ev.target.value});
-    }
-    setExpiration = (moment_date) => {
-
-        let message = null;
-        let announcement_duration = moment_date.toDate().getTime() - Date.now();
-        if (announcement_duration > MAX_ANNOUNCEMENT_DURATION && !data.get('user').is_superuser) {
-            message = _("Announcement durations must be 6 hours or less");
-        }
-
-        this.setState({
-            expiration_date: moment_date._d,
-            expiration: moment_date._d.toISOString(),
-            expiration_message: message
-        });
-    }
-    setText = (ev) => {
-        this.setState({text: ev.target.value});
-    }
-    setLink = (ev) => {
-        let link  = ev.target.value.trim();
-        this.setState({
-            link: link
-        });
-    }
-    create = () => {
-        let announcement_duration = moment(this.state.expiration).toDate().getTime() - Date.now();
-        if (announcement_duration > MAX_ANNOUNCEMENT_DURATION && !data.get('user').is_superuser) {
-            return;
-        }
-        data.set("announcement.last-type", this.state.type);
+    const create = () => {
+        const duration = all_duration_options[duration_idx] * 1000 + 1000;
+        const expiration = moment.utc(Date.now() + duration).format("YYYY-MM-DD HH:mm:ss Z");
+        data.set("announcement.last-type", announcementType);
+        data.set("announcement.last-duration", duration_idx);
 
         post("announcements", {
-            "type": this.state.type,
-            "user_ids": "",
-            "text": this.state.text,
-            "link": this.state.link,
-            "button_text": "",
-            "button_link": "",
-            "button_class": "",
-            "expiration": this.state.expiration
+            type: announcementType,
+            user_ids: "",
+            text,
+            link,
+            button_text: "",
+            button_link: "",
+            button_class: "",
+            expiration,
         })
-        .then(this.refresh)
-        .catch(errorAlerter);
-    }
-    refresh = () => {
+            .then(refresh)
+            .catch(errorAlerter);
+    };
+    const refresh = () => {
         get("announcements")
-        .then((list) => {
-            console.log(list);
-            this.setState({announcements: list});
-        })
-        .catch(errorAlerter);
+            .then((list) => {
+                setAnnouncements(list);
+            })
+            .catch(errorAlerter);
+    };
+    const deleteAnnouncement = (announcement: Announcement) => {
+        del(`announcements/${announcement.id}`).then(refresh).catch(errorAlerter);
+    };
+
+    let can_create = true;
+    let invalid_url = false;
+
+    can_create &&= !!text;
+
+    if (link && link.toLowerCase().indexOf("twitch.tv") > 0) {
+        can_create = false;
     }
-    deleteAnnouncement(announcement) {
-        del("announcements/%%", announcement.id)
-        .then(this.refresh)
-        .catch(errorAlerter);
+
+    // check if link is a valid url
+    try {
+        new URL(link);
+    } catch {
+        can_create = false;
+        invalid_url = true;
     }
 
+    if (user.is_moderator) {
+        can_create = true;
+        invalid_url = false;
+    }
 
-
-    render() {
-        let user = data.get("user");
-
-        let can_create = (this.state.expiration && this.state.text) ;
-        let announcement_duration = moment(this.state.expiration).toDate().getTime() - Date.now();
-        if (announcement_duration > MAX_ANNOUNCEMENT_DURATION && !data.get('user').is_superuser) {
-            can_create = false;
-        }
-
-
-        return (
+    return (
         <div className="AnnouncementCenter container">
-            <UIPush event="refresh" channel="announcement-center" action={this.refresh}/>
+            <UIPush event="refresh" channel="announcement-center" action={refresh} />
             <Card>
                 <dl className="horizontal">
                     <dt>Type</dt>
-                    {user.is_superuser
-                        ? <dd>
-                              <select value={this.state.type} onChange={this.setType}>
-                                  <option value="system">System</option>
-                                  <option value="stream">Stream</option>
-                                  <option value="event">Event</option>
-                                  <option value="tournament">Tournament</option>
-                                  <option value="non-supporter">Non-Supporters</option>
-                                  <option value="uservoice">Uservoice</option>
-                              </select>
-                          </dd>
-                        : user.is_moderator
-                            ? <dd>
-                                  <select value={this.state.type} onChange={this.setType}>
-                                      <option value="system">System</option>
-                                      <option value="stream">Stream</option>
-                                      <option value="event">Event</option>
-                                  </select>
-                              </dd>
-                            : <dd>
-                                  <select value={this.state.type} onChange={this.setType}>
-                                      <option value="stream">Stream</option>
-                                      <option value="event">Event</option>
-                                  </select>
-                              </dd>
-                    }
+                    {user.is_superuser ? (
+                        <dd>
+                            <select
+                                value={announcementType}
+                                onChange={(e) => setAnnouncementType(e.target.value)}
+                            >
+                                <option value="system">System</option>
+                                <option value="stream">Stream</option>
+                                <option value="event">Event</option>
+                                <option value="advertisement">Advertisement</option>
+                                <option value="tournament">Tournament</option>
+                                <option value="non-supporter">Non-Supporters</option>
+                                <option value="uservoice">Uservoice</option>
+                            </select>
+                        </dd>
+                    ) : user.is_moderator ? (
+                        <dd>
+                            <select
+                                value={announcementType}
+                                onChange={(e) => setAnnouncementType(e.target.value)}
+                            >
+                                <option value="system">System</option>
+                                <option value="stream">Stream</option>
+                                <option value="event">Event</option>
+                                <option value="advertisement">Advertisement</option>
+                            </select>
+                        </dd>
+                    ) : (
+                        <dd>
+                            <select
+                                value={announcementType}
+                                onChange={(e) => setAnnouncementType(e.target.value)}
+                            >
+                                <option value="stream">Stream</option>
+                                <option value="event">Event</option>
+                            </select>
+                        </dd>
+                    )}
 
-                    <dt>{_("Expiration")}</dt>
+                    <dt>{_("Duration")}</dt>
                     <dd>
-                        <Datetime value={this.state.expiration_date} onChange={this.setExpiration} />
+                        <div className="duration">
+                            <input
+                                type="range"
+                                min={0}
+                                max={duration_options.length - 1}
+                                value={duration_idx}
+                                onChange={(e) => {
+                                    setDurationIdx(parseInt(e.target.value));
+                                }}
+                            />
+                            <span className="text">
+                                {duration_options[duration_idx] > 3600 &&
+                                duration_options[duration_idx] % 3600 === 1800
+                                    ? interpolate(_("%s hours"), [
+                                          (duration_options[duration_idx] / 3600).toFixed(1),
+                                      ])
+                                    : moment
+                                          .duration(duration_options[duration_idx], "seconds")
+                                          .humanize(false, { h: 24, m: 59, s: 59 })}
+                            </span>
+                        </div>
                     </dd>
 
                     <dt>{_("Text")}</dt>
                     <dd>
-                        <input type="text" value={this.state.text} onChange={this.setText} />
+                        <input
+                            type="text"
+                            value={text}
+                            onChange={(ev) => setText(ev.target.value)}
+                        />
                     </dd>
 
                     <dt>{_("Link")}</dt>
                     <dd>
-                        <input type="text" value={this.state.link} onChange={this.setLink} />
+                        <input
+                            type="text"
+                            value={link}
+                            className={invalid_url ? "invalid" : ""}
+                            onChange={(ev) => setLink(ev.target.value)}
+                        />
                     </dd>
                     <dt></dt>
                     <dd>
-                        { this.state.expiration_message &&
-                            <div className='danger'>{this.state.expiration_message} </div>
-                        }
-                        <button className="primary" disabled={ !can_create } onClick={this.create}>{_("Create announcement")}</button>
+                        <button className="primary" disabled={!can_create} onClick={create}>
+                            {_("Create announcement")}
+                        </button>
                     </dd>
                 </dl>
+
+                {link && link.toLowerCase().indexOf("twitch.tv") >= 0 && (
+                    <div style={{ color: "orange" }}>
+                        {/* untranslated on purpose, we should be moving away
+                            from streamers needing to self announce in most
+                            cases */}
+                        Note: Announcing twitch.tv streams is no longer necessary as they'll
+                        automatically be picked up and displayed with the GoTV system. To use the
+                        GoTV system, simply start streaming on twitch.tv and set your category to
+                        Go, or Board Games and use the #go, #weiqi, or #baduk tags.
+                    </div>
+                )}
+
                 <div className="announcements">
-                    {this.state.announcements.map((announcement, idx) => (
+                    {announcements.map((announcement, idx) => (
                         <div className="announcement" key={idx}>
                             <div className="cell">
-                                {((user.is_moderator || user.id === announcement.creator.id) || null) &&
-                                    <button className="reject xs" onClick={this.deleteAnnouncement.bind(this, announcement)}><i className="fa fa-trash-o"/></button>
-                                }
+                                {(user.is_moderator ||
+                                    user.id === announcement.creator.id ||
+                                    null) && (
+                                    <button
+                                        className="reject xs"
+                                        onClick={() => deleteAnnouncement(announcement)}
+                                    >
+                                        <i className="fa fa-trash-o" />
+                                    </button>
+                                )}
                             </div>
                             <div className="cell">
-                                <Player user={announcement.creator}/>
+                                <Player user={announcement.creator} />
                             </div>
+                            <div className="cell">{announcement.text}</div>
                             <div className="cell">
-                                {announcement.text}
-                            </div>
-                            <div className="cell">
-                                <a target="_blank" href={announcement.link}>{announcement.link}</a>
+                                <a target="_blank" href={announcement.link}>
+                                    {announcement.link}
+                                </a>
                             </div>
                             <div className="cell">
                                 expires {moment(announcement.expiration).fromNow()}
@@ -218,29 +279,53 @@ export class AnnouncementCenter extends React.PureComponent<AnnouncementCenterPr
                     source={`announcements/history`}
                     orderBy={["-timestamp"]}
                     columns={[
-                        {header: "Time"      , className: "", render: (a) => moment(a.timestamp).format('YYYY-MM-DD LTS')},
-                        {header: "Duration"  , className: "", render: (a) => {
-                                let ms = moment(a.expiration).diff(moment(a.timestamp));
-                                let d = moment.duration(ms);
+                        {
+                            header: "Time",
+                            className: "",
+                            render: (a) => moment(a.timestamp).format("YYYY-MM-DD LTS"),
+                        },
+                        {
+                            header: "Duration",
+                            className: "",
+                            render: (a) => {
+                                const ms = moment(a.expiration).diff(moment(a.timestamp));
+                                const d = moment.duration(ms);
                                 return Math.floor(d.asHours()) + moment.utc(ms).format(":mm");
                                 //.format('HH:mm')
-                            }
+                            },
                         },
-                        {header: "Type"      , className: "announcement-type ", render: (a) => {
-                            switch (a.type) {
-                                case "system": return pgettext("Announcement type", "System");
-                                case "event": return pgettext("Announcement type", "Event");
-                                case "stream": return pgettext("Announcement type (video stream)", "Stream");
-                            }
-                            return a.type;
-                        }},
-                        {header: "Player"    , className: "", render: (a) => <Player user={a.creator} />},
-                        {header: "Message"   , className: "", render: (a) => a.text},
-                        {header: "Link"      , className: "", render: (a) => <a href={a.link}>{a.link}</a>},
+                        {
+                            header: "Type",
+                            className: "announcement-type ",
+                            render: (a) => {
+                                switch (a.type) {
+                                    case "system":
+                                        return pgettext("Announcement type", "System");
+                                    case "event":
+                                        return pgettext("Announcement type", "Event");
+                                    case "stream":
+                                        return pgettext(
+                                            "Announcement type (video stream)",
+                                            "Stream",
+                                        );
+                                }
+                                return a.type;
+                            },
+                        },
+                        {
+                            header: "Player",
+                            className: "",
+                            render: (a) => <Player user={a.creator} />,
+                        },
+                        { header: "Message", className: "", render: (a) => a.text },
+                        {
+                            header: "Link",
+                            className: "",
+                            render: (a) => <a href={a.link}>{a.link}</a>,
+                        },
                     ]}
                 />
             </Card>
         </div>
-        );
-    }
+    );
 }

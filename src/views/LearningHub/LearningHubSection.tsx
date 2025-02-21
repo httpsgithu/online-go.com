@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,44 +16,48 @@
  */
 
 import * as React from "react";
-import {LearningPage, DummyPage} from './LearningPage';
-import {getFirstUncompletedPage} from './util';
+import { LearningPage, DummyPage, LearningPageProperties } from "./LearningPage";
+import { getFirstUncompletedPage } from "./util";
 
 interface LearningHubSectionProperties {
     page: number;
     title: string;
     nextSection: string;
     section: string;
-    pages: Array<typeof LearningPage>;
+    pages: React.ComponentType<LearningPageProperties>[];
 }
 
-export abstract class LearningHubSection extends React.PureComponent<LearningHubSectionProperties, any> {
-    constructor(props) {
+export abstract class LearningHubSection extends React.PureComponent<LearningHubSectionProperties> {
+    constructor(props: LearningHubSectionProperties) {
         super(props);
     }
 
-    static pages():Array<typeof LearningPage> {
-        return [
-            DummyPage,
-            DummyPage,
-            DummyPage,
-        ];
+    static pages(): Array<typeof LearningPage> {
+        return [DummyPage, DummyPage, DummyPage];
     }
-    static section():string { return "missing"; }
-    static title():string { return "Missing"; }
-    static subtext():string { return "Missing"; }
+    static section(): string {
+        return "missing";
+    }
+    static title(): string {
+        return "Missing";
+    }
+    static subtext(): string {
+        return "Missing";
+    }
 
     render() {
         let page = this.props.page || getFirstUncompletedPage(this.props.section);
-        page = Math.min(page, this.props.pages.length);
+        page = Math.min(page, this.props.pages.length - 1);
         page = Math.max(page, 0);
-        let P:typeof LearningPage = this.props.pages[page];
-        return <P
-            title={this.props.title}
-            npages={this.props.pages.length}
-            curpage={page}
-            section={this.props.section}
-            nextSection={this.props.nextSection}
-            />;
+        const P = this.props.pages[page];
+        return (
+            <P
+                title={this.props.title}
+                nPages={this.props.pages.length}
+                curPage={page}
+                section={this.props.section}
+                nextSection={this.props.nextSection}
+            />
+        );
     }
 }

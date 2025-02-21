@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,17 +16,14 @@
  */
 
 import * as React from "react";
-import {_, pgettext, interpolate} from "translate";
-import {post, get} from "requests";
 
 interface StarRatingProperties {
     value: number;
-    rated: boolean;
-    onChange?: (value) => void;
+    rated?: boolean;
+    onChange?: (value: number) => void;
 }
 
-
-function star_class(rating, v) {
+function star_class(rating: number, v: number) {
     if (rating - (v - 1) < 1.0) {
         if (rating - (v - 1) >= 0.5) {
             return "fa-star-half-o";
@@ -38,51 +35,57 @@ function star_class(rating, v) {
     return "fa-star";
 }
 
-export class StarRating extends React.PureComponent<any, {rating}> {
-    setters = [];
-    preview = [];
+export class StarRating extends React.PureComponent<StarRatingProperties, { rating: number }> {
+    setters: ((x: React.MouseEvent) => void)[] = [];
+    preview: (() => void)[] = [];
 
-    constructor(props) {
+    constructor(props: StarRatingProperties) {
         super(props);
         this.state = {
-            rating: Math.max(0, Math.min(5, props.value))
+            rating: Math.max(0, Math.min(5, props.value)),
         };
 
         for (let i = 1; i <= 5; ++i) {
-            this.setters.push(this.props.onChange ? () => this.props.onChange(i) : () => 0);
+            this.setters.push(() => (this.props.onChange ? this.props.onChange(i) : 0));
         }
 
         for (let i = 1; i <= 5; ++i) {
-            this.preview.push(this.props.onChange ? () => this.setState({rating: i}) : () => 0);
+            this.preview.push(this.props.onChange ? () => this.setState({ rating: i }) : () => 0);
         }
     }
 
-    UNSAFE_componentWillReceiveProps(nextProps) {
-        if (this.props.value !== nextProps.value) {
-            this.setState({rating: Math.max(0, Math.min(5, nextProps.value))});
+    componentDidUpdate(oldProps: StarRatingProperties) {
+        if (this.props.value !== oldProps.value) {
+            this.setState({ rating: Math.max(0, Math.min(5, oldProps.value)) });
         }
     }
 
-    unpreview = () => {
+    stop_previewing = () => {
         if (!this.props.onChange) {
             return;
         }
-        this.setState({rating: Math.max(0, Math.min(5, this.props.value))});
-    }
+        this.setState({ rating: Math.max(0, Math.min(5, this.props.value)) });
+    };
 
     render() {
         return (
-            <span className={"StarRating" + (this.props.onChange ? " interactive" : "") + (this.props.rated ? " rated" : " unrated")}>
+            <span
+                className={
+                    "StarRating" +
+                    (this.props.onChange ? " interactive" : "") +
+                    (this.props.rated ? " rated" : " unrated")
+                }
+            >
                 {[1, 2, 3, 4, 5].map((v, idx) => (
                     <i
-                        key={v} className={"fa " + star_class(this.state.rating, v)}
+                        key={v}
+                        className={"fa " + star_class(this.state.rating, v)}
                         onClick={this.setters[idx]}
                         onMouseOver={this.preview[idx]}
-                        onMouseOut={this.unpreview}
-                        />
+                        onMouseOut={this.stop_previewing}
+                    />
                 ))}
             </span>
         );
     }
 }
-

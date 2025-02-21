@@ -1,51 +1,71 @@
 -include Makefile.passwords
 
+#cspell: words gocom maint
+
+
 RELEASE=$(shell git describe --long | sed 's@\([0-9.]\{1,\}\).*@\1@')
 VERSION=$(shell git describe --long)
-OGS_HASH=$(shell md5sum dist/ogs.min.js | awk '{print $$1}')
-VENDOR_HASH=$(shell md5sum dist/vendor.min.js | awk '{print $$1}')
+OGS_HASH=$(shell md5sum dist/ogs.js | awk '{print $$1}')
 OGS_VERSION_HASH=$(VERSION)-$(OGS_HASH)
+SLACK_WEBHOOK=$(shell cat ../ogs/.slack-webhook)
 
-
-stats:
-	npm run webpack -- --mode production --optimization-minimize --devtool=source-map --output-filename 'ogs.min.js' --json > webpack-stats.json
-	cat webpack-stats.json
 
 todo:
 	cd src; grep -r 'TODO: Implement' views components lib | grep -v gen.py | sort | grep --color -E '^[^:]*:'
 	cd src; grep -r 'TODO: Implement' views components lib | grep -v gen.py | wc -l
+
 todo-all:
 	cd src; grep -r TODO views components lib | grep --color -E '^[^:]*:'
 	cd src; grep -r TODO views components lib | wc -l
 
 
 
-
 LANGUAGE_VERSION=`md5sum i18n/locale/*.js | sort | md5sum | awk '{print $$1}'`
 SUPPORTED_LANGUAGES=`python -c 'import json; print(json.dumps(json.loads(open("i18n/languages.json", "r").read())))'`
-GOBAN_VERSION=`python -c 'import json; print(json.loads(open("package.json", "r").read())["devDependencies"]["goban"][1:])'`
 
-INDEX_HEADERS=-H "Content-Type: text/plain" \
-	-H "X-OGS-Index-Auth: $(SUPER_SECURE_INDEX_AUTH)" \
+BASE_INDEX_HEADERS=-H "Content-Type: text/plain" \
 	-H "X-OGS-Index-Release: $(RELEASE)"  \
 	-H "X-OGS-Index-Version: $(VERSION)"  \
 	-H "X-OGS-Supported-Languages: $(SUPPORTED_LANGUAGES)"  \
-	-H "X-OGS-Goban-Js: https://cdn.online-go.com/goban/$(GOBAN_VERSION)/goban.min.js"  \
 	-H "X-OGS-Language-Version: $(LANGUAGE_VERSION)"  \
 
-dev-put: push-cdn
-	OGS_VERSION_HASH=$(OGS_VERSION_HASH) VENDOR_HASH=$(VENDOR_HASH) npm run minify-index --silent | curl -X PUT $(INDEX_HEADERS) -d @- http://localhost:1080/_index
+DEV_INDEX_HEADERS=$(BASE_INDEX_HEADERS) -H "X-OGS-Index-Auth: $(DEV_INDEX_AUTH)"
+BETA_INDEX_HEADERS=$(BASE_INDEX_HEADERS) -H "X-OGS-Index-Auth: $(BETA_INDEX_AUTH)"
+PROD_INDEX_HEADERS=$(BASE_INDEX_HEADERS) -H "X-OGS-Index-Auth: $(PROD_INDEX_AUTH)"
+	
+minify-index:	
+	@echo "Testing index minification"
+	OGS_VERSION_HASH=$(OGS_VERSION_HASH)  npm run minify-index --silent | wc -c
+
+#dev-put: push-cdn
+dev-put:
+	OGS_VERSION_HASH=$(OGS_VERSION_HASH) npm run minify-index --silent | curl -X PUT $(DEV_INDEX_HEADERS) -d @- http://localhost:1080/_index
+
 dev-del:
-	curl -X DELETE $(INDEX_HEADERS)  http://localhost:1080/_index
+	curl -X DELETE $(BETA_INDEX_HEADERS)  http://localhost:1080/_index
 
-beta-put: push-cdn audit-translations
-	OGS_VERSION_HASH=$(OGS_VERSION_HASH) VENDOR_HASH=$(VENDOR_HASH) npm run minify-index --silent | curl -X PUT $(INDEX_HEADERS) -d @- https://beta.online-go.com/_index
+beta-put: build sync-translations build-i18n create-unified-pot audit-translations jsonify-po-files push-cdn upload-sentry-source-maps
+	OGS_VERSION_HASH=$(OGS_VERSION_HASH) npm run minify-index --silent | curl -X PUT $(BETA_INDEX_HEADERS) -d @- https://beta.online-go.com/_index
+	make beta-notify-slack
 
-live-put: confirm-go-live push-cdn
-	OGS_VERSION_HASH=$(OGS_VERSION_HASH) VENDOR_HASH=$(VENDOR_HASH) npm run minify-index --silent | curl -X PUT $(INDEX_HEADERS) -d @- https://online-go.com/_index
+live-put: confirm-go-live build push-cdn
+	OGS_VERSION_HASH=$(OGS_VERSION_HASH) npm run minify-index --silent | curl -X PUT $(PROD_INDEX_HEADERS) -d @- https://online-go.com/_index
+	make live-notify-slack
 
 live-maint: confirm-go-live 
-	curl -X PUT $(INDEX_HEADERS) -T src/maint.html  https://online-go.com/_index
+	curl -X PUT $(PROD_INDEX_HEADERS) -T src/maint.html  https://online-go.com/_index
+
+beta-notify-slack:
+	MSG=`git log -1 --pretty="%B" | sed s/\"//g | sed s/\'//g `; \
+	VERSION=`git describe --long`; \
+	echo $$VERSION $$MSG; \
+	curl -X POST -H 'Content-type: application/json' --data '{"text":"'"[BETA UI] $$VERSION $$MSG"'"}' $(SLACK_WEBHOOK)
+
+live-notify-slack:
+	MSG=`git log -1 --pretty="%B" | sed s/\"//g | sed s/\'//g `; \
+	VERSION=`git describe --long`; \
+	echo $$VERSION $$MSG; \
+	curl -X POST -H 'Content-type: application/json' --data '{"text":"'"[PRODUCTION UI] $$VERSION $$MSG"'"}' $(SLACK_WEBHOOK)
 
 confirm-go-live:
 	@read -p "Go live? " yesno; \
@@ -56,22 +76,32 @@ push: push-cdn
 
 push-cdn: prepare-cdn-files
 	gsutil -m rsync -r deployment-staging-area/$(RELEASE) gs://ogs-site-files/$(RELEASE)/
+	gsutil -m setmeta -h "Content-Type:audio/webm" 'gs://ogs-site-files/$(RELEASE)/sound/*.webm'
 
 sync-translations:
-	cd i18n/locale/; ssh pootle@45.76.254.197 "bash -c 'cd online-go.com/i18n/locale; tar jcf - *'" | tar jxf -
+	cd i18n/build/; ssh pootle@pootle "bash -c 'cd online-go.com/i18n/build; tar jcf - *'" | tar jxf -
+	cd i18n/locale/; ssh pootle@pootle "bash -c 'cd online-go.com/i18n/locale; tar jcf - *'" | tar jxf -
+
+create-unified-pot:
+	# This is run on the pootle server and here, the pootle server does most of the work,
+	# this invocation extracts strings that need to be translated by LLMs
+	cd i18n; python  translation-code-replace-for-parsing.py
+	cd i18n; node create-unified-pot.js llm-translation-extraction
 
 audit-translations:
 	cd i18n; node audit-translations.js
 
-prepare-cdn-files: purge-cdn-files sync-translations dist/ogs.min.js dist/vendor.min.js dist/ogs.$(VERSION).css
+jsonify-po-files:
+	cd i18n; node jsonify-po-files.js
+
+prepare-cdn-files: purge-cdn-files dist/ogs.js dist/ogs.min.css
+	echo "Language version: $(LANGUAGE_VERSION)"
 	mkdir -p deployment-staging-area/$(RELEASE)/
 	mkdir -p deployment-staging-area/$(RELEASE)/locale
-	cat dist/ogs.min.js | sed 's/ogs.min.js.map/ogs.$(OGS_VERSION_HASH).js.map/' > deployment-staging-area/$(RELEASE)/ogs.$(OGS_VERSION_HASH).js
-	cat dist/vendor.min.js | sed 's/vendor.min.js.map/vendor.$(VENDOR_HASH).js.map/' > deployment-staging-area/$(RELEASE)/vendor.$(VENDOR_HASH).js
-	cp -p dist/ogs.min.js.map deployment-staging-area/$(RELEASE)/ogs.$(OGS_VERSION_HASH).js.map
-	cp -p dist/vendor.min.js.map deployment-staging-area/$(RELEASE)/vendor.$(VENDOR_HASH).js.map
-	cp -p dist/ogs.$(VERSION).css deployment-staging-area/$(RELEASE)/
-	cp -p dist/ogs.$(VERSION).css.map deployment-staging-area/$(RELEASE)/
+	cat dist/ogs.js | sed 's/ogs.js.map/ogs.$(OGS_VERSION_HASH).js.map/' > deployment-staging-area/$(RELEASE)/ogs.$(OGS_VERSION_HASH).js
+	cp -p dist/ogs.js.map deployment-staging-area/$(RELEASE)/ogs.$(OGS_VERSION_HASH).js.map
+	cat dist/ogs.min.css | sed 's/ogs.min.css.map/ogs.min.$(VERSION).css.map/' > deployment-staging-area/$(RELEASE)/ogs.$(VERSION).css
+	cp -p dist/ogs.min.css.map deployment-staging-area/$(RELEASE)/ogs.min.$(VERSION).css.map
 	cp -Rp assets/img deployment-staging-area/$(RELEASE)/
 	cp -Rp assets/sound deployment-staging-area/$(RELEASE)/
 	ls i18n/locale/*.js | sed 's@i18n/locale/\([^\.]\+\).js@\1@' | xargs -n1 -I {} cp i18n/locale/{}.js deployment-staging-area/$(RELEASE)/locale/{}.$(LANGUAGE_VERSION).js
@@ -83,20 +113,20 @@ prepare-cdn-files: purge-cdn-files sync-translations dist/ogs.min.js dist/vendor
 	find deployment-staging-area/ | grep \\.xcf$$ | xargs rm -f
 	find deployment-staging-area/ | grep \\.dat$$ | xargs rm -f
 
+upload-sentry-source-maps:
+	sentry-cli releases --org online-gocom --project online-gocom new $(VERSION)
+	sentry-cli releases --org online-gocom --project online-gocom files $(VERSION) upload-sourcemaps --ignore locale deployment-staging-area/$(RELEASE)/
+	sentry-cli releases --org online-gocom --project online-gocom finalize $(VERSION)
+
 purge-cdn-files:
 	rm -Rf deployment-staging-area
 
-dist/ogs.min.js: dist/ogs.js
-	npm run webpack -- --mode=production --optimization-minimize --devtool=source-map
-
-dist/vendor.min.js: dist/vendor.js
-	npm run webpack -- --mode=production --optimization-minimize --devtool=source-map
-
-dist/ogs.$(VERSION).css: 
-	npm run gulp min_styl
+dist/ogs.$(VERSION).css: dist/ogs.min.css
+	cp $< $@ 
+	cp $<.map $@.map
 
 
 
 
-.PHONY: dev stats todo update install default min server dist push-cdn sync-translations
+.PHONY: dev stats todo update install default server dist push-cdn sync-translations
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,17 +16,27 @@
  */
 
 import * as React from "react";
-import {_, pgettext, interpolate} from "translate";
-import { group_channels, tournament_channels, global_channels, ChatChannelProxy, chat_manager } from "chat_manager";
-import * as data from "data";
-import { PersistentElement } from "PersistentElement";
-import { Flag } from "Flag";
-import { shouldOpenNewTab } from "misc";
-import {browserHistory} from "ogsHistory";
-import * as preferences from "preferences";
-import {popover} from "popover";
-import { ChatDetails, getUnreadChatPreference, getMentionedChatPreference, watchChatSubscriptionChanged, unwatchChatSubscriptionChanged } from "Chat";
-
+import { _ } from "@/lib/translate";
+import {
+    group_channels,
+    tournament_channels,
+    global_channels,
+    ChatChannelProxy,
+    chat_manager,
+} from "@/lib/chat_manager";
+import * as data from "@/lib/data";
+import { Flag } from "@/components/Flag";
+import { shouldOpenNewTab } from "@/lib/misc";
+import { browserHistory } from "@/lib/ogsHistory";
+import { popover } from "@/lib/popover";
+import {
+    getUnreadChatPreference,
+    getMentionedChatPreference,
+    watchChatSubscriptionChanged,
+    unwatchChatSubscriptionChanged,
+} from "./state";
+import { ChatDetails } from "./ChatDetails";
+import { DataSchema } from "@/lib/data_schema";
 
 interface ChatListProperties {
     show_unjoined?: boolean;
@@ -38,9 +48,9 @@ interface ChatListProperties {
     join_joined?: boolean;
     highlight_active_channel?: boolean;
     closing_toggle?: () => void;
-    collapse_state_store_name?: string;
+    collapse_state_store_name?: keyof DataSchema;
     fakelink?: boolean;
-    partFunc?: (channel:string, dont_autoset_active:boolean, dont_clear_joined:boolean) => void;
+    partFunc?: (channel: string, dont_auto_set_active: boolean, dont_clear_joined: boolean) => void;
 }
 
 interface ChatListState {
@@ -54,40 +64,42 @@ interface ChatListState {
     collapse_read: boolean;
     join_subscriptions: boolean;
     join_joined: boolean;
-    collapsed_channel_groups: {[channel_group:string]: boolean};
-    collapse_state_store_name: string;
+    collapsed_channel_groups: { [channel_group: string]: boolean };
+    collapse_state_store_name: keyof DataSchema;
     highlight_active_channel: boolean;
     active_channel: string;
     fakelink: boolean;
-    partFunc?: (channel:string, dont_autoset_active:boolean, dont_clear_joined:boolean) => void;
+    partFunc?: (channel: string, dont_auto_set_active: boolean, dont_clear_joined: boolean) => void;
 }
 
 export class ChatList extends React.PureComponent<ChatListProperties, ChatListState> {
-    channels: {[channel:string]: ChatChannelProxy} = {};
-    joined_chats = {};
+    channels: { [channel: string]: ChatChannelProxy } = {};
+    joined_chats: { [channel: string]: true | 1 } = {};
     closing_toggle: () => void = () => null;
 
-    constructor(props) {
+    constructor(props: ChatListProperties) {
         super(props);
         if (props.closing_toggle) {
             this.closing_toggle = props.closing_toggle;
         }
         this.state = {
-            show_unjoined: props.show_unjoined,
-            show_read: props.show_read,
+            show_unjoined: !!props.show_unjoined,
+            show_read: !!props.show_read,
             hide_global: props.hide_global,
             visible_group_channels: false,
             visible_global_channels: false,
             visible_tournament_channels: false,
-            collapse_unjoined: props.collapse_unjoined,
-            collapse_read: props.collapse_read,
-            join_subscriptions: props.join_subscriptions,
-            join_joined: props.join_joined,
-            collapsed_channel_groups: props.collapse_state_store_name ? {global: false, groups: false, tournaments: false} : undefined,
-            collapse_state_store_name: props.collapse_state_store_name,
-            highlight_active_channel: props.highlight_active_channel,
+            collapse_unjoined: !!props.collapse_unjoined,
+            collapse_read: !!props.collapse_read,
+            join_subscriptions: !!props.join_subscriptions,
+            join_joined: !!props.join_joined,
+            collapsed_channel_groups: props.collapse_state_store_name
+                ? { global: false, groups: false, tournaments: false }
+                : {},
+            collapse_state_store_name: props.collapse_state_store_name as keyof DataSchema,
+            highlight_active_channel: !!props.highlight_active_channel,
             active_channel: data.get("chat.active_channel", ""),
-            fakelink: props.fakelink,
+            fakelink: !!props.fakelink,
             partFunc: props.partFunc,
         };
     }
@@ -99,7 +111,6 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
         data.watch("chat.active_channel", this.onActiveChannelChanged);
         data.watch("chat.joined", this.onJoinedChanged);
         watchChatSubscriptionChanged(this.onChatSubscriptionUpdate);
-
     }
 
     componentWillUnmount() {
@@ -107,13 +118,13 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
         data.unwatch("chat.active_channel", this.onActiveChannelChanged);
         data.unwatch("chat.joined", this.onJoinedChanged);
         unwatchChatSubscriptionChanged(this.onChatSubscriptionUpdate);
-        Object.keys(this.channels).forEach(channel => {
+        Object.keys(this.channels).forEach((channel) => {
             this.channels[channel].part();
             delete this.channels[channel];
         });
     }
 
-    onCollapseStoreChanged = (obj: {[channel_group: string]: boolean}) => {
+    onCollapseStoreChanged = (obj: { [channel_group: string]: boolean }) => {
         if (!("groups" in obj)) {
             obj.groups = false;
         }
@@ -123,47 +134,48 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
         if (!("tournaments" in obj)) {
             obj.tournaments = false;
         }
-        this.setState({collapsed_channel_groups: obj});
-    }
+        this.setState({ collapsed_channel_groups: obj });
+    };
 
-    onActiveChannelChanged = (channel) => {
-        this.setState({
-            active_channel: channel,
-        });
-    }
+    onActiveChannelChanged = (channel: string | undefined) => {
+        if (channel) {
+            this.setState({
+                active_channel: channel,
+            });
+        }
+    };
 
-    onJoinedChanged = (joined: {[channel:string]: number}) => {
+    onJoinedChanged = (joined?: { [channel: string]: true | 1 }) => {
         if (joined === undefined) {
             joined = {};
         }
         this.joined_chats = joined;
         this.updateConnectedChannels();
-    }
+    };
 
     onChatSubscriptionUpdate = () => {
         this.updateConnectedChannels();
-    }
+    };
 
-    _join_or_part(channel:string) {
-        if (this.state.join_subscriptions &&
-            (getUnreadChatPreference(channel) ||
-             getMentionedChatPreference(channel))) {
-                if (!(channel in this.channels)) {
-                    let channelProxy = chat_manager.join(channel);
-                    channelProxy.on("unread-count-changed", this.onUnreadCountChange);
-                    this.channels[channel] = channelProxy;
-                }
-                return true;
+    _join_or_part(channel: string) {
+        if (
+            this.state.join_subscriptions &&
+            (getUnreadChatPreference(channel) || getMentionedChatPreference(channel))
+        ) {
+            if (!(channel in this.channels)) {
+                const channelProxy = chat_manager.join(channel);
+                channelProxy.on("unread-count-changed", this.onUnreadCountChange);
+                this.channels[channel] = channelProxy;
+            }
+            return true;
         }
-        if (this.state.join_joined &&
-            channel in this.joined_chats &&
-            this.joined_chats[channel]) {
-                if (!(channel in this.channels)) {
-                    let channelProxy = chat_manager.join(channel);
-                    channelProxy.on("unread-count-changed", this.onUnreadCountChange);
-                    this.channels[channel] = channelProxy;
-                }
-                return true;
+        if (this.state.join_joined && channel in this.joined_chats && this.joined_chats[channel]) {
+            if (!(channel in this.channels)) {
+                const channelProxy = chat_manager.join(channel);
+                channelProxy.on("unread-count-changed", this.onUnreadCountChange);
+                this.channels[channel] = channelProxy;
+            }
+            return true;
         }
         if (channel in this.channels) {
             this.channels[channel].part();
@@ -173,23 +185,25 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
     }
 
     updateConnectedChannels() {
-        let visible_global_channels = !this.state.hide_global && this.state.show_unjoined && global_channels.length > 0;
+        let visible_global_channels =
+            !this.state.hide_global && this.state.show_unjoined && global_channels.length > 0;
         let visible_group_channels = this.state.show_unjoined && group_channels.length > 0;
-        let visible_tournament_channels = this.state.show_unjoined && tournament_channels.length > 0;
+        let visible_tournament_channels =
+            this.state.show_unjoined && tournament_channels.length > 0;
         for (let idx = 0; idx < global_channels.length; idx = idx + 1) {
-            let watched = this._join_or_part(global_channels[idx].id);
+            const watched = this._join_or_part(global_channels[idx].id);
             if (watched) {
                 visible_global_channels = true;
             }
         }
         for (let idx = 0; idx < tournament_channels.length; idx = idx + 1) {
-            let watched = this._join_or_part("tournament-" + tournament_channels[idx].id);
+            const watched = this._join_or_part("tournament-" + tournament_channels[idx].id);
             if (watched) {
                 visible_tournament_channels = true;
             }
         }
         for (let idx = 0; idx < group_channels.length; idx = idx + 1) {
-            let watched = this._join_or_part("group-" + group_channels[idx].id);
+            const watched = this._join_or_part("group-" + group_channels[idx].id);
             if (watched) {
                 visible_group_channels = true;
             }
@@ -197,17 +211,23 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
         this.setState({
             visible_global_channels: visible_global_channels,
             visible_group_channels: visible_group_channels,
-            visible_tournament_channels: visible_tournament_channels
+            visible_tournament_channels: visible_tournament_channels,
         });
         this.forceUpdate();
     }
 
-    onUnreadCountChange = (obj) => {
+    onUnreadCountChange = () => {
         this.forceUpdate();
-    }
+    };
 
-    goToChannel = (ev) => {
-        setActiveChannel($(ev.target).attr("data-channel"));
+    goToChannel = (ev: React.MouseEvent<HTMLDivElement>) => {
+        const chan = ev.currentTarget.getAttribute("data-channel");
+        if (!chan) {
+            return;
+        }
+
+        setActiveChannel(chan);
+
         if (ev && shouldOpenNewTab(ev)) {
             window.open("/chat");
         } else {
@@ -217,34 +237,34 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
             }
         }
         this.closing_toggle();
-    }
+    };
 
     toggleShowAllGlobalChannels = () => {
-        let collapsed_channel_groups = this.state.collapsed_channel_groups;
+        const collapsed_channel_groups = this.state.collapsed_channel_groups;
         collapsed_channel_groups.global = !collapsed_channel_groups.global;
         if (this.state.collapse_state_store_name) {
             data.set(this.state.collapse_state_store_name, collapsed_channel_groups);
         }
         this.forceUpdate();
-    }
+    };
     toggleShowAllGroupChannels = () => {
-        let collapsed_channel_groups = this.state.collapsed_channel_groups;
+        const collapsed_channel_groups = this.state.collapsed_channel_groups;
         collapsed_channel_groups.groups = !collapsed_channel_groups.groups;
         if (this.state.collapse_state_store_name) {
             data.set(this.state.collapse_state_store_name, collapsed_channel_groups);
         }
         this.forceUpdate();
-    }
+    };
     toggleShowAllTournamentChannels = () => {
-        let collapsed_channel_groups = this.state.collapsed_channel_groups;
+        const collapsed_channel_groups = this.state.collapsed_channel_groups;
         collapsed_channel_groups.tournaments = !collapsed_channel_groups.tournaments;
         if (this.state.collapse_state_store_name) {
             data.set(this.state.collapse_state_store_name, collapsed_channel_groups);
         }
         this.forceUpdate();
-    }
+    };
 
-    display_details = (event) => {
+    display_details = (event: React.MouseEvent<HTMLElement>) => {
         if (!this.props.fakelink && shouldOpenNewTab(event)) {
             /* let browser deal with opening the window so we don't get the popup warnings */
             return;
@@ -253,11 +273,15 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
         event.stopPropagation();
         event.preventDefault();
 
-        let channel = event.currentTarget.getAttribute('data-channel');
+        const channel = event.currentTarget.getAttribute("data-channel");
+        if (!channel) {
+            return;
+        }
+
         if (shouldOpenNewTab(event)) {
             let uri = "";
-            if (channel.startsWith('group')) {
-                uri += '/group/' + channel.slice(6);
+            if (channel.startsWith("group")) {
+                uri += "/group/" + channel.slice(6);
             }
             if (channel.startsWith("tournament")) {
                 uri += "/tournament/" + channel.slice(11);
@@ -266,17 +290,23 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
         }
 
         popover({
-            elt: (<ChatDetails chatChannelId={channel} subscribable={!(channel.startsWith("global") || channel === "shadowban")} partFunc={(channel in this.channels ? this.state.partFunc : undefined)}/>),
+            elt: (
+                <ChatDetails
+                    chatChannelId={channel}
+                    subscribable={!(channel.startsWith("global") || channel === "shadowban")}
+                    partFunc={channel in this.channels ? this.state.partFunc : undefined}
+                />
+            ),
             below: event.currentTarget,
-            minWidth: 130,
+            minWidth: 200,
         });
-    }
+    };
 
     render() {
-        let user = data.get('user');
-        let user_country = user.country || 'un';
+        const user = data.get("user");
+        const user_country = user.country || "un";
 
-        let chan_class = (channel: string) => {
+        const chan_class = (channel: string) => {
             let chan_class = "";
             let unread = false;
             if (!(channel in this.channels)) {
@@ -284,11 +314,17 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
             }
             if (channel in this.channels) {
                 chan_class = chan_class + " chat-subscribed";
-                if (getUnreadChatPreference(channel) && this.channels[channel].channel.unread_ct > 0) {
+                if (
+                    getUnreadChatPreference(channel) &&
+                    this.channels[channel].channel.unread_ct > 0
+                ) {
                     chan_class = chan_class + " unread";
                     unread = true;
                 }
-                if (getMentionedChatPreference(channel) && this.channels[channel].channel.mentioned) {
+                if (
+                    getMentionedChatPreference(channel) &&
+                    this.channels[channel].channel.mentioned
+                ) {
                     chan_class = chan_class + " mentioned";
                     unread = true;
                 }
@@ -299,16 +335,32 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
             return chan_class;
         };
 
-        let message_count = (channel: string) => {
+        const message_count = (channel: string) => {
             if (channel in this.channels) {
-                let c = this.channels[channel].channel;
+                const c = this.channels[channel].channel;
                 if (c.unread_ct > 0) {
-                    return <span className="unread-count" data-count={"(" + c.unread_ct + ")"} data-menu="▼" data-channel={channel} onClick={this.display_details} />;
+                    return (
+                        <span
+                            className="unread-count"
+                            data-count={"(" + c.unread_ct + ")"}
+                            data-menu="▼"
+                            data-channel={channel}
+                            onClick={this.display_details}
+                        />
+                    );
                 }
             }
-            return <span className="unread-count" data-count="" data-menu="▼" data-channel={channel} onClick={this.display_details} />;
+            return (
+                <span
+                    className="unread-count"
+                    data-count=""
+                    data-menu="▼"
+                    data-channel={channel}
+                    onClick={this.display_details}
+                />
+            );
         };
-        let channel_visibility = () => {
+        const channel_visibility = () => {
             let visibility = "";
             if (this.state.collapse_read) {
                 visibility = visibility + " hide-read";
@@ -319,48 +371,88 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
             return visibility;
         };
         return (
-            <div className={"ChatList" + (!this.state.show_read ? " hide-read" : "") + (!this.state.show_unjoined ? " hide-unjoined" : "") }>
-                <div className={"channels" + (!this.state.collapsed_channel_groups["groups"] ? channel_visibility() : "")}>
+            <div
+                className={
+                    "ChatList" +
+                    (!this.state.show_read ? " hide-read" : "") +
+                    (!this.state.show_unjoined ? " hide-unjoined" : "")
+                }
+            >
+                <div
+                    className={
+                        "channels" +
+                        (!this.state.collapsed_channel_groups["groups"] ? channel_visibility() : "")
+                    }
+                >
                     {(this.state.visible_group_channels || null) && (
                         <div className="channel-header">
                             <span>{_("Group Channels")}</span>
-                            <i onClick={this.toggleShowAllGroupChannels} className={"channel-expand-toggle " + (this.state.collapsed_channel_groups["groups"] ?  "fa fa-minus" : "fa fa-plus")}/>
+                            <i
+                                onClick={this.toggleShowAllGroupChannels}
+                                className={
+                                    "channel-expand-toggle " +
+                                    (this.state.collapsed_channel_groups["groups"]
+                                        ? "fa fa-minus"
+                                        : "fa fa-plus")
+                                }
+                            />
                         </div>
-                    ) }
+                    )}
                     {group_channels.map((chan) => (
-                        <div key={chan.id}
+                        <div
+                            key={chan.id}
                             className={
-                                ((this.state.highlight_active_channel && this.state.active_channel === ("group-" + chan.id)) ? "channel active" : "channel")
-                                + chan_class("group-" + chan.id)
+                                (this.state.highlight_active_channel &&
+                                this.state.active_channel === "group-" + chan.id
+                                    ? "channel active"
+                                    : "channel") + chan_class("group-" + chan.id)
                             }
                             data-channel={"group-" + chan.id}
                             onClick={this.goToChannel}
                         >
                             <span className="channel-name" data-channel={"group-" + chan.id}>
-                                <img className="icon" src={chan.icon}/> {chan.name}
+                                <img className="icon" src={chan.icon} /> {chan.name}
                             </span>
                             {message_count("group-" + chan.id)}
                         </div>
                     ))}
                 </div>
 
-                <div className={"channels" + (!this.state.collapsed_channel_groups["tournaments"] ? channel_visibility() : "")}>
+                <div
+                    className={
+                        "channels" +
+                        (!this.state.collapsed_channel_groups["tournaments"]
+                            ? channel_visibility()
+                            : "")
+                    }
+                >
                     {(this.state.visible_tournament_channels || null) && (
                         <div className="channel-header">
                             <span>{_("Tournament Channels")}</span>
-                            <i onClick={this.toggleShowAllTournamentChannels} className={"channel-expand-toggle " + (this.state.collapsed_channel_groups["tournaments"] ?  "fa fa-minus" : "fa fa-plus")}/>
+                            <i
+                                onClick={this.toggleShowAllTournamentChannels}
+                                className={
+                                    "channel-expand-toggle " +
+                                    (this.state.collapsed_channel_groups["tournaments"]
+                                        ? "fa fa-minus"
+                                        : "fa fa-plus")
+                                }
+                            />
                         </div>
                     )}
                     {tournament_channels.map((chan) => (
-                        <div key={chan.id}
+                        <div
+                            key={chan.id}
                             className={
-                                ((this.state.highlight_active_channel && this.state.active_channel === ("tournament-" + chan.id)) ? "channel active" : "channel")
-                                + chan_class("tournament-" + chan.id)
+                                (this.state.highlight_active_channel &&
+                                this.state.active_channel === "tournament-" + chan.id
+                                    ? "channel active"
+                                    : "channel") + chan_class("tournament-" + chan.id)
                             }
-                            data-channel={"tournaments-" + chan.id}
+                            data-channel={"tournament-" + chan.id}
                             onClick={this.goToChannel}
                         >
-                            <span className="channel-name" data-channel={"tournament-" + chan.id} >
+                            <span className="channel-name" data-channel={"tournament-" + chan.id}>
                                 <i className="fa fa-trophy" /> {chan.name}
                             </span>
                             {message_count("tournament-" + chan.id)}
@@ -368,24 +460,50 @@ export class ChatList extends React.PureComponent<ChatListProperties, ChatListSt
                     ))}
                 </div>
 
-                <div className={"channels" + (!this.state.collapsed_channel_groups["global"] ? channel_visibility() : "")}>
+                <div
+                    className={
+                        "channels" +
+                        (!this.state.collapsed_channel_groups["global"] ? channel_visibility() : "")
+                    }
+                >
                     {(this.state.visible_global_channels || null) && (
                         <div className="channel-header">
                             <span>{_("Global Channels")}</span>
-                            <i onClick={this.toggleShowAllGlobalChannels} className={"channel-expand-toggle " + (this.state.collapsed_channel_groups["global"] ?  "fa fa-minus" : "fa fa-plus")}/>
+                            <i
+                                onClick={this.toggleShowAllGlobalChannels}
+                                className={
+                                    "channel-expand-toggle " +
+                                    (this.state.collapsed_channel_groups["global"]
+                                        ? "fa fa-minus"
+                                        : "fa fa-plus")
+                                }
+                            />
                         </div>
                     )}
                     {global_channels.map((chan) => (
-                        <div key={chan.id}
+                        <div
+                            key={chan.id}
                             className={
-                                ((this.state.highlight_active_channel && this.state.active_channel === chan.id) ? "channel active" : "channel")
-                                + chan_class(chan.id)
+                                (this.state.highlight_active_channel &&
+                                this.state.active_channel === chan.id
+                                    ? "channel active"
+                                    : "channel") + chan_class(chan.id)
                             }
                             data-channel={chan.id}
                             onClick={this.goToChannel}
                         >
                             <span className="channel-name" data-channel={chan.id}>
-                                <Flag country={chan.country} language={chan.language && (typeof(chan.language) === "string" ? chan.language : chan.language[0])} user_country={user_country} /> {chan.name}
+                                <Flag
+                                    country={chan.country ?? ""}
+                                    language={
+                                        chan.language &&
+                                        (typeof chan.language === "string"
+                                            ? chan.language
+                                            : chan.language[0])
+                                    }
+                                    user_country={user_country}
+                                />{" "}
+                                {chan.name}
                             </span>
                             {message_count(chan.id)}
                         </div>

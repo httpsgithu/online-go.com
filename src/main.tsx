@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,61 +15,90 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/// <reference path="../typings_manual/index.d.ts" />
-import "whatwg-fetch"; /* polyfills window.fetch */
-import * as Sentry from '@sentry/browser';
-import * as SentryTracing from '@sentry/tracing';
-import { configure_goban } from 'configure-goban';
-import { GoMath } from 'goban';
-import { sfx } from 'sfx';
+import * as Sentry from "@sentry/browser";
+import { configure_goban } from "@/lib/configure-goban";
+import {
+    init_wasm_ownership_estimator,
+    init_remote_ownership_estimator,
+    ScoreEstimateRequest,
+    ScoreEstimateResponse,
+} from "goban";
+
+import { OgsHelpProvider } from "@/components/OgsHelpProvider";
+import { HelpFlows } from "@/views/HelpFlows";
+import { sfx } from "@/lib/sfx";
+import { post } from "@/lib/requests";
+import { ai_host } from "@/lib/sockets";
 sfx.sync();
 
-declare var ogs_current_language;
-declare var ogs_version;
+declare let ogs_current_language: string;
+declare let ogs_language_version: string;
+declare let ogs_version: string;
 
 let sentry_env = "production";
 
-if (/online-(go|baduk|weiqi|covay|igo).(com|net)$/.test(document.location.host) && !(/dev/.test(document.location.host))) {
+if (
+    /online-(go|baduk|weiqi|covay|igo).(com|net)$/.test(document.location.host) &&
+    !/dev/.test(document.location.host)
+) {
     sentry_env = "production";
     if (/beta/.test(document.location.host)) {
         sentry_env = "beta";
     }
-}  else {
+} else {
     sentry_env = "development";
 }
 
 try {
     Sentry.init({
-        //dsn: 'https://91e6858af48a40e7954e5b7548aa2e08@sentry.io/250615',
-        dsn: "https://dca0827fe9e34251b0e495ae55198ba7@sentry.online-go.com/5",
-        release: ogs_version || 'dev',
-        tracesSampleRate: 1.0,
-        whitelistUrls: [
-            'online-go.com',
-            'online-baduk.com',
-            'online-weiqi.com',
-            'online-covay.com',
-            'online-igo.com',
-            'cdn.online-go.com',
-            'beta.online-go.com',
-            'dev.beta.online-go.com'
-        ],
+        dsn: "https://f8e3b8de571e412b98ff8f98e12c7f58@o589780.ingest.sentry.io/5750726",
+        autoSessionTracking: false,
+        release: ogs_version || "dev",
+        allowUrls: ["online-go.com", "kidsgoserver.com", "beta.online-go.com", "baduk.com"],
         environment: sentry_env,
         integrations: [
             new Sentry.Integrations.GlobalHandlers({
                 onerror: true,
-                onunhandledrejection: false
+                onunhandledrejection: false,
             }),
             new Sentry.Integrations.Breadcrumbs({
-                console: false
+                console: false,
             }),
-            new SentryTracing.Integrations.BrowserTracing(),
-        ]
+        ],
+
+        /* Several users have weird addons and extensions that cause errors
+         * that have nothing to do with OGS. This code filters some of these
+         * out so they don't get reported to Sentry. */
+        ignoreErrors: [
+            "ReferenceError",
+            "coinbase",
+            "ethereum",
+            "hideMyLocation",
+            "userAgent",
+            "zaloJSV2", // cspell:disable-line
+            "evaluating 'a.L'",
+            "document.querySelector(\"[title='Kaya']\").style",
+            "onHide is not defined",
+            "outputCurrentConfiguration",
+            "mvpConfig",
+            "?(<anonymous>)",
+            "Cannot read properties of undefined (reading 'ns')",
+
+            // Library bugs
+            ").ended is not a function", // d3
+
+            // Safari bugs
+            //   broken mac app WKWebView, see
+            //   https://github.com/getsentry/sentry-javascript/issues/3040
+            "evaluating 'window.webkit.messageHandlers'",
+            //   Audio
+            "cannot call stop without calling start first",
+        ],
     });
 
-    Sentry.setTag("version", ogs_version || 'dev');
-    Sentry.setExtra("language", ogs_current_language || 'unknown');
-    Sentry.setExtra("version", ogs_version || 'dev');
+    Sentry.setTag("version", ogs_version || "dev");
+    Sentry.setExtra("language", ogs_current_language || "unknown");
+    Sentry.setExtra("version", ogs_version || "dev");
 } catch (e) {
     console.error(e);
 }
@@ -78,128 +107,122 @@ try {
     window.onunhandledrejection = (e) => {
         console.error(e);
         console.error(e.reason);
-        console.error(e.stack);
+        if (e.reason.stack) {
+            console.error(e.reason.stack);
+        }
     };
 } catch (e) {
     console.log(e);
 }
 
-import * as data from "data";
-import * as preferences from "preferences";
+import * as data from "@/lib/data";
+
+import * as preferences from "@/lib/preferences";
 
 try {
     // default_theme is set in index.html based on looking at the OS theme
-    data.setDefault("theme", window["default_theme"]);
-} catch (e) {
+    data.setDefault("theme", window.default_theme);
+} catch {
     data.setDefault("theme", "light");
 }
-data.setDefault("config", {
-    "user": {
-        "anonymous": true,
-        "id": 0,
-        "username": "Guest",
-        "ranking": -100,
-        "country": "un",
-        "pro": 0,
-    }
-});
-data.setDefault("config.user", {
-    "anonymous": true,
-    "id": 0,
-    "username": "Guest",
-    "ranking": -100,
-    "country": "un",
-    "pro": 0,
-});
 
-data.setDefault('config.cdn', window['cdn_service']);
-data.setDefault('config.cdn_host', window['cdn_service'].replace('https://', '').replace('http://', '').replace('//', ''));
-data.setDefault('config.cdn_release', window['cdn_service'] + '/' + window['ogs_release']);
-data.setDefault('config.release', window['ogs_release']);
+const default_user = {
+    anonymous: true,
+    id: 0,
+    username: "Guest",
+    ranking: -100,
+    country: "un",
+    pro: 0,
+    supporter: false,
+    is_moderator: false,
+    is_superuser: false,
+    is_tournament_moderator: false,
+    can_create_tournaments: false,
+    tournament_admin: false,
+};
+
+data.setDefault("config", { user: default_user });
+
+data.setDefault("config.user", default_user);
+
+data.setDefault("config.cdn", window.cdn_service);
+data.setDefault(
+    "config.cdn_host",
+    window.cdn_service.replace("https://", "").replace("http://", "").replace("//", ""),
+);
+data.setDefault("config.cdn_release", window.cdn_service + "/" + window.ogs_release);
+data.setDefault("config.release", window.ogs_release);
 
 configure_goban();
 
 import * as React from "react";
-import * as ReactDOM from "react-dom";
-import { browserHistory } from './ogsHistory';
+import * as ReactDOM from "react-dom/client";
+import { browserHistory } from "@/lib/ogsHistory";
 import { routes } from "./routes";
 
 //import {Promise} from "es6-promise";
-import {get} from "requests";
-import {errorAlerter, uuid} from "misc";
-import {close_all_popovers} from "popover";
-import * as sockets from "sockets";
-import {_} from "translate";
-import {init_tabcomplete} from "tabcomplete";
-import * as player_cache from "player_cache";
-import {toast} from 'toast';
-import cached from 'cached';
-import * as moment from 'moment';
+import { errorAlerter } from "@/lib/misc";
+import { close_all_popovers } from "@/lib/popover";
+import * as sockets from "@/lib/sockets";
+import { _, setCurrentLanguage } from "@/lib/translate";
 
+import * as player_cache from "@/lib/player_cache";
+import { toast } from "@/lib/toast";
+import cached from "@/lib/cached";
+import moment from "moment";
+import { get_device_id } from "@/views/SignIn";
+
+import { ConfigSchema } from "@/lib/data_schema";
+import * as history from "history";
 import "debug";
+import "@/ogs.styl";
 
-declare const swal;
+/**
+ * getPreferredLanguage() is defined in index.html. It gets the user's chosen
+ * language from preferences.
+ */
+declare function getPreferredLanguage(): string;
 
-
-/*** Initialize moment in our current language ***/
-declare function getPreferredLanguage();
+// Initialize moment in our current language
 moment.locale(getPreferredLanguage());
-
+setCurrentLanguage(getPreferredLanguage());
 
 /*** Load our config ***/
-data.watch(cached.config, (config) => {
+
+/* cached.config is supplied by the server and stored with `data.set()` in response to a login action (login, register),
+   after which a page-reload occurs (due to navigation to logged-in page) and that's where this is executed */
+
+const cached_config = data.get(cached.config);
+
+// If cached_config doesn't exist, then the user-defaults set further above (anonymous) will apply...
+
+if (cached_config) {
     /* We do a pass where we set everything, and then we 'set' everything
      * again to do the emits that we are expecting. Otherwise triggers
      * that are depending on other parts of the config will fire without
      * having up to date information (in particular user / auth stuff) */
-    for (let key in config) {
-        data.setWithoutEmit(`config.${key}`, config[key]);
+    for (const key in cached_config) {
+        data.setWithoutEmit(`config.${key as keyof ConfigSchema}`, (cached_config as any)[key]);
     }
-    for (let key in config) {
-        data.set(`config.${key}`, config[key]);
+    for (const key in cached_config) {
+        data.set(`config.${key as keyof ConfigSchema}`, (cached_config as any)[key]);
     }
-});
+}
 
-let last_username: string | null = null;
-data.watch("config.user", (user) => {
-    try {
-        Sentry.setUser({
-            'id': user.id,
-            'username': user.username,
-        });
-    } catch (e) {
-        console.error(e);
-    }
+const user = data.get("config.user"); // guaranteed to return anonymous by the defaults, unless they are logged in
 
-    player_cache.update(user);
-    data.set("user", user);
-    window["user"] = user;
+try {
+    Sentry.setUser({
+        id: user.id,
+        username: user.username,
+    });
+} catch (e) {
+    console.error(e);
+}
 
-    if (last_username && last_username !== user.username) {
-        last_username = user.username;
-        forceReactUpdate();
-    }
-    last_username = user.username;
-});
-
-/***
- * Setup a device UUID so we can logout other *devices* and not all other
- * tabs with our new logout-other-devices button
- */
-data.set('device.uuid', data.get('device.uuid', uuid()));
-
-/*** SweetAlert setup ***/
-swal.setDefaults({
-    confirmButtonClass: "primary",
-    cancelButtonClass: "reject",
-    buttonsStyling: false,
-    reverseButtons: true,
-    confirmButtonText: _("OK"),
-    cancelButtonText: _("Cancel"),
-    allowEscapeKey: true,
-    //focusCancel: true,
-});
-
+player_cache.update(user);
+data.set("user", user);
+window.user = user;
 
 /***
  * Test if local storage is disabled for some reason (Either because the user
@@ -207,113 +230,113 @@ swal.setDefaults({
  * Safari in private browsing mode which implicitly disables the feature.)
  */
 try {
-    localStorage.setItem('localstorage-test', "true");
-} catch (e) {
+    localStorage.setItem("localstorage-test", "true");
+} catch {
     toast(
         <div>
-            {_("It looks like localStorage is disabled on your browser. Unfortunately you won't be able to login without enabling it first.")}
-        </div>
+            {_(
+                "It looks like localStorage is disabled on your browser. Unfortunately you won't be able to sign in without enabling it first.",
+            )}
+        </div>,
     );
 }
 
-
 /** Connect to the chat service */
-let auth_connect_fn = () => {return; };
-data.watch("config.user", (user) => {
-    if (!user.anonymous) {
-        auth_connect_fn = (): void => {
-            sockets.comm_socket.send("authenticate", {
-                auth: data.get("config.chat_auth"),
-                player_id: user.id,
-                username: user.username,
-                jwt: data.get('config.user_jwt'),
-            });
-            sockets.comm_socket.send("chat/connect", {
-                auth: data.get("config.chat_auth"),
-                player_id: user.id,
-                ranking: user.ranking,
-                username: user.username,
-                ui_class: user.ui_class,
-            });
-        };
-    } else if (user.id < 0) {
-        auth_connect_fn = (): void => {
-            sockets.comm_socket.send("chat/connect", {
-                player_id: user.id,
-                ranking: user.ranking,
-                username: user.username,
-                ui_class: user.ui_class,
-            });
-        };
-    }
-    if (sockets.comm_socket.connected) {
-        auth_connect_fn();
+for (const socket of [sockets.socket, sockets.ai_socket]) {
+    socket.authenticate({
+        jwt: data.get("config.user_jwt", ""),
+        device_id: get_device_id(),
+        user_agent: navigator.userAgent,
+        language: ogs_current_language,
+        language_version: ogs_language_version,
+        client_version: ogs_version,
+    });
+}
+
+data.watch("config.user_jwt", (jwt?: string) => {
+    if (sockets.ai_socket.connected) {
+        sockets.ai_socket.authenticate({
+            jwt: jwt ?? "",
+            device_id: get_device_id(),
+            user_agent: navigator.userAgent,
+            language: ogs_current_language,
+            language_version: ogs_language_version,
+            client_version: ogs_version,
+        });
     }
 });
-sockets.comm_socket.on("connect", () => {auth_connect_fn(); });
 
+sockets.socket.on("user/jwt", (jwt: string) => {
+    console.log("Updating JWT");
+    data.set("config.user_jwt", jwt);
+});
+
+sockets.socket.on("user/update", (user: any) => {
+    if (user.id === data.get("config.user")?.id) {
+        console.log("Updating user", user);
+        data.set("config.user", user);
+        player_cache.update(user);
+        data.set("user", user);
+        window.user = user;
+    } else {
+        console.log("Ignoring user update for user", user);
+    }
+});
+
+/*** Setup remote ownership estimation for score estimation and autoscoring */
+init_remote_ownership_estimator(remote_ownership_estimator);
+function remote_ownership_estimator(req: ScoreEstimateRequest): Promise<ScoreEstimateResponse> {
+    return new Promise<ScoreEstimateResponse>((resolve) => {
+        req.jwt = data.get("config.user_jwt", "");
+        resolve(post(`${ai_host}/api/score`, req));
+    });
+}
+init_wasm_ownership_estimator()
+    .then(() => {
+        // console.log('SE Initialized');
+    })
+    .catch((err) => console.error(err));
 
 /*** Generic error handling from the server ***/
-sockets.termination_socket.on("ERROR", errorAlerter);
+sockets.socket.on("ERROR", errorAlerter);
 
-
-/*** Google analytics ***/
-declare var gtag;
-
-
-browserHistory.listen(location => {
+browserHistory.listen(({ action /*, location */ }) => {
     try {
-        let cleaned_path = location.pathname.replace(/\/[0-9]+(\/.*)?/, "/ID");
-
-        let user_type = 'error';
-        let user = data.get('user');
-
-        if (!user || user.anonymous) {
-            user_type = 'anonymous';
-        } else if (user.supporter) {
-            user_type = 'supporter';
-        } else {
-            user_type = 'non-supporter';
+        if (action !== history.Action.Replace) {
+            window.document.title = "OGS";
         }
-
-        if (gtag) {
-            /* ga history hook  */
-            window["gtag"]("config", 'UA-37743954-2', {
-                'page_path': cleaned_path,
-                'custom_map': {
-                    'dimension1': user_type
-                }
-            });
-        }
-
-        window.document.title = "OGS";
-
         close_all_popovers();
     } catch (e) {
         console.log(e);
     }
 });
 
-
 /*** Some finial initializations ***/
-init_tabcomplete();
+
+//  don't inherit old rdh values
+if (user.anonymous) {
+    data.remove("rdh-system-state");
+}
 
 /* Initialization done, render!! */
-let svg_loader = document.getElementById('loading-svg-container');
-svg_loader.parentNode.removeChild(svg_loader);
+const svg_loader = document.getElementById("loading-svg-container");
+svg_loader?.parentNode?.removeChild(svg_loader);
 
-let forceReactUpdate:() => void = () => {};
+const react_root = ReactDOM.createRoot(document.getElementById("main-content") as HTMLElement);
 
-function ForceReactUpdateWrapper(props):JSX.Element {
-    let [update, setUpdate] = React.useState(1);
-    forceReactUpdate = () => {
-        setUpdate(update + 1);
-    };
-    return <React.Fragment key={update}>{props.children}</React.Fragment>;
-}
-ReactDOM.render(<ForceReactUpdateWrapper>{routes}</ForceReactUpdateWrapper>, document.getElementById("main-content"));
+react_root.render(
+    <React.StrictMode>
+        <OgsHelpProvider>
+            <ModalProvider>{routes}</ModalProvider>
+            <HelpFlows />
+        </OgsHelpProvider>
+    </React.StrictMode>,
+);
 
-window['data'] = data;
-window['preferences'] = preferences;
-window['player_cache'] = player_cache;
-window['GoMath'] = GoMath;
+window.data = data;
+window.preferences = preferences;
+window.player_cache = player_cache;
+
+import * as requests from "@/lib/requests";
+import { ModalProvider } from "./components/ModalProvider/ModalProvider";
+window.requests = requests;

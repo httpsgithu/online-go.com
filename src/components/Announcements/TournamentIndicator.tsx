@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,58 +16,71 @@
  */
 
 import * as React from "react";
-import {Link} from "react-router-dom";
-import * as data from "data";
-import * as moment from "moment";
+import { Link } from "react-router-dom";
+import * as data from "@/lib/data";
+import moment from "moment";
+import { usePreference } from "@/lib/preferences";
 
+export function TournamentIndicator(): React.ReactElement | null {
+    const [tournament, setTournament] = React.useState<any>(null);
+    const [minutes_left, setMinutesLeft] = React.useState(0);
+    const [seconds_left, setSecondsLeft] = React.useState(0);
+    const [enabled] = usePreference("show-tournament-indicator");
+    const [enabled_on_mobile] = usePreference("show-tournament-indicator-on-mobile");
 
-
-export class TournamentIndicator extends React.PureComponent<{}, any> {
-    update_interval = null;
-
-    constructor(props) {
-        super(props);
-        this.state = {
-            tournament: null
-        };
-    }
-    UNSAFE_componentWillMount() {
-        data.watch("active-tournament", (tournament) => {
-            this.setState({tournament: tournament});
-            if (this.update_interval) {
-                clearInterval(this.update_interval);
-            }
-            if (tournament) {
-                this.update_interval = setInterval(this.forceUpdate.bind(this), 1000);
-            }
-        });
-    }
-
-    render() {
-        if (this.state.tournament == null) {
-            return null;
+    React.useEffect((): (() => void) | void => {
+        if (enabled) {
+            const onActiveTournament = (tournament: any) => {
+                setTournament(tournament);
+            };
+            data.watch("active-tournament", onActiveTournament);
+            return () => {
+                data.unwatch("active-tournament", onActiveTournament);
+            };
+        } else {
+            setTournament(null);
         }
+    }, [enabled]);
 
-        let t = (moment(this.state.tournament.expiration).toDate().getTime() - Date.now()) / 1000;
-        if (t < 0) {
-            setTimeout(() => {
-                data.set("active-tournament", null);
-            }, 1);
-            return null;
+    React.useEffect((): (() => void) | void => {
+        if (tournament && enabled) {
+            const update = () => {
+                const t = (moment(tournament.expiration).toDate().getTime() - Date.now()) / 1000;
+                if (t < 0) {
+                    data.set("active-tournament", undefined);
+                } else {
+                    setMinutesLeft(Math.floor(t / 60));
+                    setSecondsLeft(Math.floor(t % 60));
+                }
+            };
+
+            const update_interval = setInterval(update, 1000);
+            update();
+
+            return () => {
+                if (update_interval) {
+                    clearInterval(update_interval);
+                }
+            };
         }
+    }, [tournament, enabled]);
 
-        let m = Math.floor(t / 60);
-        let s: any = Math.floor(t - (m * 60));
-        if (s < 10) {
-            s = "0" + s;
-        }
-
-        return (
-            <Link to={this.state.tournament.link} className="TournamentIndicator"
-                title={this.state.tournament.text} >
-                <i className="fa fa-trophy"/>
-                <span className="time">{m}:{s}</span>
-            </Link>
-       );
+    if (!tournament) {
+        return null;
     }
+
+    const padded_seconds_left = seconds_left < 10 ? "0" + seconds_left : seconds_left;
+
+    return (
+        <Link
+            to={tournament.link}
+            className={`TournamentIndicator ${!enabled_on_mobile ? "hidden-on-mobile" : ""}`}
+            title={tournament.text}
+        >
+            <i className="fa fa-trophy" />
+            <span className="time">
+                {minutes_left}:{padded_seconds_left}
+            </span>
+        </Link>
+    );
 }

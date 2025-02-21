@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,68 +16,42 @@
  */
 
 import * as React from "react";
-import {get} from 'requests';
-import {errorAlerter} from "misc";
-import * as player_cache from "player_cache";
-import {User} from './User';
+import { get } from "@/lib/requests";
+import { errorAlerter } from "@/lib/misc";
+import * as player_cache from "@/lib/player_cache";
+import { useParams } from "react-router-dom";
+import { User } from "./User";
 
+export function UserByName(): React.ReactElement | null {
+    const { username } = useParams();
+    const [user_id, set_user_id] = React.useState<number>();
 
-declare let swal;
-
-interface UserByNameProperties {
-    match: {
-        params: any
+    const doFetch = (username: string) => {
+        get("players", { username: username })
+            .then((res) => {
+                if (res.results.length) {
+                    set_user_id(res.results[0].id);
+                } else {
+                    set_user_id(-1);
+                }
+            })
+            .catch(errorAlerter);
     };
+
+    React.useEffect(() => {
+        const user_id = player_cache.lookup_by_username(username)?.id;
+        if (user_id != null) {
+            set_user_id(user_id);
+            return;
+        }
+
+        if (username) {
+            doFetch(username);
+        }
+    }, [username]);
+
+    if (user_id) {
+        return <User user_id={user_id} />;
+    }
+    return null;
 }
-
-export class UserByName extends React.PureComponent<UserByNameProperties, any> {
-    constructor(props) {
-        super(props);
-
-        let user = player_cache.lookup_by_username(props.match.params.username);
-
-        this.state = {
-            user_id: user ? user.id : null
-        };
-    }
-
-    componentDidMount() {
-        if (!this.state.user_id) {
-            this.doFetch(this.props.match.params.username);
-        }
-    }
-
-    UNSAFE_componentWillReceiveProps(next_props) {
-        if (next_props.match.params.username !== this.props.match.params.username) {
-            let user = player_cache.lookup_by_username(next_props.match.params.username);
-
-            this.setState({user_id: user ? user.id : null});
-
-            if (!user || !user.id) {
-                this.doFetch(next_props.match.params.username);
-            }
-        }
-    }
-
-    doFetch(username:string) {
-        get("players", {username: username})
-        .then((res) => {
-            if (res.results.length) {
-                this.setState({
-                    user_id: res.results[0].id
-                });
-            } else {
-                this.setState({user_id: -1});
-            }
-        })
-        .catch(errorAlerter);
-    }
-
-    render() {
-        if (this.state.user_id) {
-            return <User match={{params: {user_id: this.state.user_id}}}/>;
-        }
-        return null;
-    }
-}
-

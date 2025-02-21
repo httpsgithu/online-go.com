@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,51 +16,52 @@
  */
 
 import * as React from "react";
-import * as moment from "moment";
-import {_, interpolate} from "translate";
+import moment from "moment";
+import { _, interpolate } from "@/lib/translate";
 
-interface ServerTimeDisplayProperties {}
+interface ServerTimeState {
+    time: moment.Moment;
+}
+export class ServerTimeDisplay extends React.Component<{}, ServerTimeState> {
+    interval?: ReturnType<typeof setInterval>;
 
-export class ServerTimeDisplay extends React.Component<ServerTimeDisplayProperties, any> {
-
-    intervalID;
-
-    constructor(props) {
+    constructor(props: {}) {
         super(props);
         this.state = {
-            time: moment().utcOffset(0)
+            time: moment().utcOffset(0),
         };
     }
 
     componentDidMount() {
-        this.intervalID = setInterval(
-            () => this.tick(),
-            1000
-        );
+        this.interval = setInterval(() => this.tick(), 1000);
     }
 
     componentWillUnmount() {
-        clearInterval(this.intervalID);
+        clearInterval(this.interval);
     }
 
     tick() {
         this.setState({
-            time: moment().utcOffset(0)
+            time: moment().utcOffset(0),
         });
     }
 
     weekendTransitionText() {
-        let day = new Date().getUTCDay();
+        const day = new Date().getUTCDay();
 
-        if (day === 6 || day === 0) { /* Saturday or Sunday */
-            let midnight_sunday = day === 6
-                ?  moment().utcOffset(0).add(1, 'day').endOf('day')
-                :  moment().utcOffset(0).endOf('day')
-            ;
-
-            return interpolate(_("Weekend ends {{time_from_now}}"), {"time_from_now": midnight_sunday.fromNow()});
+        if (day === 6 || day === 0) {
+            /* Saturday or Sunday */
+            const midnight_sunday =
+                day === 6
+                    ? moment().utcOffset(0).add(1, "day").endOf("day")
+                    : moment().utcOffset(0).endOf("day");
+            return interpolate(_("Weekend ends {{time_from_now}}"), {
+                time_from_now: midnight_sunday.fromNow(),
+            });
         } else {
-            return interpolate(_("Weekend starts {{time_from_now}}"), {"time_from_now": moment().utcOffset(0).isoWeekday(5).endOf('day').fromNow()});
+            return interpolate(_("Weekend starts {{time_from_now}}"), {
+                time_from_now: moment().utcOffset(0).isoWeekday(5).endOf("day").fromNow(),
+            });
         }
     }
 
@@ -68,11 +69,11 @@ export class ServerTimeDisplay extends React.Component<ServerTimeDisplayProperti
         return (
             <div className="server-time-display">
                 <div>
-                    {interpolate(_("Server Time: {{time}}"), {"time": this.state.time.format('dddd LTS z')})}
+                    {interpolate(_("Server Time: {{time}}"), {
+                        time: this.state.time.format("dddd LTS z"),
+                    })}
                 </div>
-                <div>
-                    {this.weekendTransitionText()}
-                </div>
+                <div>{this.weekendTransitionText()}</div>
             </div>
         );
     }

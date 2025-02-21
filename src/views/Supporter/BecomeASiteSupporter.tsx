@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,32 +16,29 @@
  */
 
 import * as React from "react";
-import {Link} from "react-router-dom";
-import {browserHistory} from "ogsHistory";
-import * as data from "data";
-import {Modal, openModal} from "Modal";
-import {_, pgettext, interpolate} from "translate";
-import {SiteSupporterText} from "./SiteSupporterText";
-
-
+import { browserHistory } from "@/lib/ogsHistory";
+import { Modal, openModal } from "@/components/Modal";
+import { _ } from "@/lib/translate";
+//import {SiteSupporterText} from "./Supporter";
+import { Supporter } from "./Supporter";
 
 export class BecomeASiteSupporterModal extends Modal<{}, {}, any> {
-    constructor(props) {
+    constructor(props: {}) {
         super(props);
     }
 
     render() {
         return (
-            <div className="Modal BecomeASiteSupporterModal" ref="modal">
+            <div className="Modal BecomeASiteSupporterModal">
                 <div className="header">
                     <h2>{_("Become a site supporter today!")}</h2>
                 </div>
                 <div className="body">
-                    <SiteSupporterText />
+                    <Supporter inline={true} />
                 </div>
+
                 <div className="buttons">
                     <button onClick={this.close}>{_("Close")}</button>
-                    <button className='primary' onClick={this.becomeASiteSupporter}>{_("Become a Site Supporter!")}</button>
                 </div>
             </div>
         );
@@ -50,7 +47,7 @@ export class BecomeASiteSupporterModal extends Modal<{}, {}, any> {
     becomeASiteSupporter = () => {
         browserHistory.push("/user/supporter");
         this.close();
-    }
+    };
 }
 
 export function openBecomeASiteSupporterModal() {

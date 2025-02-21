@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,23 +15,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 import * as React from "react";
-import * as data from "data";
-import { ai_socket } from "sockets";
-import { MoveTree } from "goban";
+import { ai_socket } from "@/lib/sockets";
+import { MoveTree, GobanSocketEvents } from "goban";
+import { IdType } from "@/lib/types";
 
-
-let analysis_requests_made:{[id:string]: boolean} = {};
+const analysis_requests_made: { [id: string]: boolean } = {};
 
 interface AIReviewStreamProperties {
-    uuid?: string;
-    game_id?: number | string;
-    ai_review_id?: number | string;
+    uuid: string;
+    game_id: IdType;
+    ai_review_id: IdType;
     callback: (data: any) => any;
 }
 
-export function AIReviewStream(props:AIReviewStreamProperties):JSX.Element {
+export function AIReviewStream(props: AIReviewStreamProperties): null {
     const uuid = props.uuid;
     const game_id = props.game_id;
     const ai_review_id = props.ai_review_id;
@@ -41,72 +39,73 @@ export function AIReviewStream(props:AIReviewStreamProperties):JSX.Element {
             console.log("No UUID for review stream");
             return;
         } else {
-            ai_socket.on('connect', onConnect);
-            ai_socket.on(uuid, onMessage);
+            ai_socket.on("connect", onConnect);
+            ai_socket.on(uuid as keyof GobanSocketEvents, onMessage as any);
             if (ai_socket.connected) {
                 onConnect();
             }
         }
 
-        function onJwtChange() {
-            let user = data.get('config.user');
-            let user_jwt = data.get('config.user_jwt');
-            if (!user.anonymous && user_jwt) {
-                ai_socket.send('authenticate', {jwt: user_jwt});
-            }
-        }
-
-        function watch_jwt() {
-            data.watch('config.user_jwt', onJwtChange);
-        }
-        function unwatch_jwt() {
-            data.unwatch('config.user_jwt', onJwtChange);
-        }
-
         function onConnect() {
-            ai_socket.send('ai-review-connect', {uuid, game_id, ai_review_id});
-            watch_jwt();
+            ai_socket.send("ai-review-connect", { uuid, game_id, ai_review_id });
         }
 
-        function onMessage(data: any) {
+        function onMessage(data?: any) {
             props.callback(data);
         }
 
         return () => {
             if (ai_socket.connected) {
-                ai_socket.send('ai-review-disconnect', {uuid});
+                ai_socket.send("ai-review-disconnect", { uuid });
             }
-            ai_socket.off('connect', onConnect);
-            ai_socket.off(uuid, onMessage);
-            unwatch_jwt();
+            ai_socket.off("connect", onConnect);
+            ai_socket.off(uuid as keyof GobanSocketEvents, onMessage as any);
         };
     }, [uuid]);
 
     return null;
 }
 
-export function ai_request_variation_analysis(uuid, game_id, ai_review_id, cur_move:MoveTree, trunk_move: MoveTree):void {
-    if (!ai_socket.connected) {
-        console.warn("Not sending request for variation analysis since we wern't connected to the AI server");
+export function ai_request_variation_analysis(
+    uuid: string,
+    game_id: number,
+    ai_review_id: number,
+    cur_move: MoveTree,
+    trunk_move: MoveTree,
+): void {
+    if (!ai_socket?.connected) {
+        console.warn(
+            "Not sending request for variation analysis since we weren't connected to the AI server",
+        );
         return;
     }
 
-    let trunk_move_string = trunk_move.getMoveStringToThisPoint();
-    let cur_move_string = cur_move.getMoveStringToThisPoint();
-    let variation = cur_move_string.slice(trunk_move_string.length);
+    const trunk_move_string = trunk_move.getMoveStringToThisPoint();
+    const cur_move_string = cur_move.getMoveStringToThisPoint();
+    const variation = cur_move_string.slice(trunk_move_string.length);
 
-    let key = `${uuid}-${game_id}-${ai_review_id}-${trunk_move.move_number}-${variation}`;
+    if (trunk_move_string.includes("undefined")) {
+        console.error("Trunk move string includes undefined", trunk_move_string);
+    } else if (cur_move_string.includes("undefined")) {
+        console.error("Current move string includes undefined", cur_move_string);
+    } else if (variation.includes("undefined")) {
+        console.error("Variation includes undefined", variation);
+    } else {
+        console.log("Sending request for variation analysis", variation);
+    }
+
+    const key = `${uuid}-${game_id}-${ai_review_id}-${trunk_move.move_number}-${variation}`;
     if (key in analysis_requests_made) {
         return;
     }
     analysis_requests_made[key] = true;
 
-    let req = {
+    const req = {
         uuid: uuid,
         game_id: game_id,
         ai_review_id: ai_review_id,
         from: trunk_move.move_number,
         variation: variation,
     };
-    ai_socket.send("ai-analyze-variation", req);
+    ai_socket?.send("ai-analyze-variation", req);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2021  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,60 +16,72 @@
  */
 
 import * as React from "react";
-import {_} from 'translate';
-import {Modal, openModal} from "Modal";
-import * as data from "data";
+import { _ } from "@/lib/translate";
+import { Modal, openModal } from "@/components/Modal";
+import * as data from "@/lib/data";
 
-interface Events {
-}
+interface Events {}
 
 interface PlayerNotesModalProperties {
     playerId: number;
 }
 
 export class PlayerNotesModal extends Modal<Events, PlayerNotesModalProperties, any> {
-    constructor(props) {
+    constructor(props: PlayerNotesModalProperties) {
         super(props);
         this.state = {
-            notes: undefined
+            notes: undefined,
         };
     }
 
     componentDidMount = () => {
         super.componentDidMount(); /* this.close() doesn't work if you don't do this */
-        let user = data.get('config.user');
+        const user = data.get("config.user");
         this.setState({ notes: data.get(`player-notes.${user.id}.${this.props.playerId}`) });
-    }
+    };
 
-    updateNotes = (ev) => {
+    updateNotes = (ev: React.ChangeEvent<HTMLTextAreaElement>) => {
         const new_notes = ev.target.value;
         if (new_notes.length < 5000) {
-            this.setState({notes: ev.target.value});
+            this.setState({ notes: ev.target.value });
         }
-    }
+    };
 
     saveNotes = () => {
-        let user = data.get('config.user');
-        let notes = this.state.notes.trim();
+        const user = data.get("config.user");
+        const notes = this.state.notes?.trim();
         if (notes) {
-            data.set(`player-notes.${user.id}.${this.props.playerId}`, notes, data.Replication.REMOTE_OVERWRITES_LOCAL);
+            data.set(
+                `player-notes.${user.id}.${this.props.playerId}`,
+                notes,
+                data.Replication.REMOTE_OVERWRITES_LOCAL,
+            );
         } else {
-            data.remove(`player-notes.${user.id}.${this.props.playerId}`, data.Replication.REMOTE_OVERWRITES_LOCAL);
+            data.remove(
+                `player-notes.${user.id}.${this.props.playerId}`,
+                data.Replication.REMOTE_OVERWRITES_LOCAL,
+            );
         }
         this.close();
-    }
+    };
 
     render() {
         return (
-          <div className="Modal PlayerNotesModal" ref="modal">
-              <div className="body">
-                <textarea placeholder={_("(no notes yet)")} value={this.state.notes} onChange={this.updateNotes} />
-              </div>
-              <div className="buttons">
-                <button onClick={this.close}>{_("Cancel")}</button>
-                <button className="primary bold" onClick={this.saveNotes}>{_("Save")}</button>
-              </div>
-          </div>
+            <div className="Modal PlayerNotesModal">
+                <div className="body">
+                    <textarea
+                        placeholder={_("(no notes yet)")}
+                        value={this.state.notes}
+                        onChange={this.updateNotes}
+                    />
+                </div>
+                <div className="buttons">
+                    <button onClick={this.close}>{_("Cancel")}</button>
+                    <button className="primary bold" onClick={this.saveNotes}>
+                        {_("Save")}
+                    </button>
+                </div>
+            </div>
         );
     }
 }

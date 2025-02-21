@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,40 +15,40 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as data from "data";
-import {sections, allsections} from './sections';
-import {LearningHubSection} from './LearningHubSection';
+import * as data from "@/lib/data";
+import { sections, all_sections } from "./sections";
+import { LearningHubSection } from "./LearningHubSection";
 
 interface SectionCompletion {
-    first:boolean;      /* if this is the first section in a category */
-    started:boolean;    /* if this has been started */
-    completed:boolean;  /* if we've completed this section */
-    finished:number;    /* number of pages completed in the section */
-    total:number;       /* total number of pages in the section */
+    first: boolean /* if this is the first section in a category */;
+    started: boolean /* if this has been started */;
+    completed: boolean /* if we've completed this section */;
+    finished: number /* number of pages completed in the section */;
+    total: number /* total number of pages in the section */;
 }
 
-export function getSectionCompletion(section_name:string):SectionCompletion {
+export function getSectionCompletion(section_name: string): SectionCompletion {
     let first = false;
     let started = false;
     let completed = false;
     let finished = 0;
     let total = 0;
 
-    for (let arr of sections) {
+    for (const arr of sections) {
         if (arr[1][0].section() === section_name) {
             first = true;
         }
     }
 
-    let section = null;
-    for (let S of allsections) {
+    let section: any = null;
+    for (const S of all_sections) {
         if (S.section() === section_name) {
             section = S;
             break;
         }
     }
 
-    let completion = data.get(`learning-hub.${section_name}`, {});
+    const completion = data.get(`learning-hub.${section_name}`, {});
     total = section.pages().length;
     for (let i = 0; i < total; ++i) {
         if (i in completion) {
@@ -64,12 +64,12 @@ export function getSectionCompletion(section_name:string):SectionCompletion {
         started,
         completed,
         finished,
-        total
+        total,
     };
 }
 
-export function getSectionByName(section_name:string):typeof LearningHubSection {
-    for (let S of allsections) {
+export function getSectionByName(section_name: string): typeof LearningHubSection | null {
+    for (const S of all_sections) {
         if (S.section() === section_name) {
             return S;
         }
@@ -78,10 +78,10 @@ export function getSectionByName(section_name:string):typeof LearningHubSection 
     return null;
 }
 
-export function getFirstUncompletedPage(section_name:string):number {
-    let completion = data.get(`learning-hub.${section_name}`, {});
-    let section = null;
-    for (let S of allsections) {
+export function getFirstUncompletedPage(section_name: string): number {
+    const completion = data.get(`learning-hub.${section_name}`, {});
+    let section: any = null;
+    for (const S of all_sections) {
         if (S.section() === section_name) {
             section = S;
             break;
@@ -97,13 +97,13 @@ export function getFirstUncompletedPage(section_name:string):number {
     return 0;
 }
 
-export function setSectionPageCompleted(section_name:string, page_number:number):void {
-    let completion = data.get(`learning-hub.${section_name}`, {});
+export function setSectionPageCompleted(section_name: string, page_number: number): void {
+    const completion = data.get(`learning-hub.${section_name}`, {});
     completion[page_number] = true;
     data.set(`learning-hub.${section_name}`, completion);
 }
 
-export function getSectionPageCompleted(section_name:string, page_number:number):boolean {
-    let completion = data.get(`learning-hub.${section_name}`, {});
+export function getSectionPageCompleted(section_name: string, page_number: number): boolean {
+    const completion = data.get(`learning-hub.${section_name}`, {});
     return page_number in completion;
 }

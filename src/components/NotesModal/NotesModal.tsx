@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,33 +16,30 @@
  */
 
 import * as React from "react";
-import {_} from 'translate';
-import {Modal, openModal} from "Modal";
+import { _ } from "@/lib/translate";
+import { Modal } from "@/components/Modal";
 
-declare let swal;
-
-interface Events {
-}
+interface Events {}
 
 interface NotesModalProperties {
     notes: string;
 }
 
 export class NotesModal extends Modal<Events, NotesModalProperties, any> {
-    constructor(props) {
+    constructor(props: NotesModalProperties) {
         super(props);
     }
 
     render() {
         return (
-          <div className="Modal NotesModal" ref="modal">
-              <div className="body">
-                <textarea value={this.props.notes} readOnly />
-              </div>
-              <div className="buttons">
-                  <button onClick={this.close}>{_("Close")}</button>
-              </div>
-          </div>
+            <div className="Modal NotesModal">
+                <div className="body">
+                    <textarea value={this.props.notes} readOnly />
+                </div>
+                <div className="buttons">
+                    <button onClick={this.close}>{_("Close")}</button>
+                </div>
+            </div>
         );
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,17 +15,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as React from "react";
-import {_, pgettext, getLanguageFlag} from "translate";
-import {get} from "requests";
-import {Flag} from "Flag";
-import {Player} from "Player";
-import * as data from "data";
+/* spell-checker: disable */
 
-function shuffleArray(array) {
+import * as React from "react";
+import { _, pgettext, getLanguageFlag } from "@/lib/translate";
+import { get } from "@/lib/requests";
+import { Flag } from "@/components/Flag";
+import { Player } from "@/components/Player";
+import * as data from "@/lib/data";
+
+function shuffleArray(array: any[]) {
     for (let i = array.length - 1; i >= 0; i--) {
-        let j = Math.floor(Math.random() * (i + 1));
-        let temp = array[i];
+        const j = Math.floor(Math.random() * (i + 1));
+        const temp = array[i];
         array[i] = array[j];
         array[j] = temp;
     }
@@ -33,236 +35,255 @@ function shuffleArray(array) {
 }
 
 export class Team extends React.PureComponent<{}, any> {
-    constructor(props) {
+    constructor(props: {}) {
         super(props);
         this.state = {
-            contributors: []
+            contributors: [],
         };
     }
 
-    UNSAFE_componentWillMount() {
-        get('https://api.github.com/repos/online-go/online-go.com/contributors?per_page=100')
-        .then((list) => {
-            this.setState({contributors: list});
-        })
-        .catch((err) => {
-            console.error(err);
-        });
+    componentDidMount() {
+        get("https://api.github.com/repos/online-go/online-go.com/contributors?per_page=100")
+            .then((list) => {
+                this.setState({ contributors: list });
+            })
+            .catch((err) => {
+                console.error(err);
+            });
     }
 
     render() {
-        let user = data.get("user");
+        const user = data.get("user");
 
+        const country = user ? user.country : "gb";
 
-        let country = user ? user.country : "gb";
+        const fr = getLanguageFlag("french", country, "fr");
+        const en = getLanguageFlag("english", country, "us");
+        const es = getLanguageFlag("spanish", country, "es");
+        const de = getLanguageFlag("german", country, "de");
+        const cn = getLanguageFlag("chinese", country, "cn");
+        const se = getLanguageFlag("swedish", country, "se");
+        const cz = getLanguageFlag("czech", country, "cz");
+        const jp = getLanguageFlag("japan", country, "jp");
+        const nl = getLanguageFlag("netherlands", country, "nl");
+        const gb = getLanguageFlag("gb", country, "gb");
+        const fi = getLanguageFlag("finnish", country, "fi");
 
-        let fr = getLanguageFlag("french", country, "fr");
-        let en = getLanguageFlag("english", country, "us");
-        let es = getLanguageFlag("spanish", country, "es");
-        let de = getLanguageFlag("german", country, "de");
-        let cn = getLanguageFlag("chinese", country, "cn");
-        let hi = getLanguageFlag("hindi", country, "in");
-        let gb = getLanguageFlag("gb", country, "gb");
-        let se = getLanguageFlag("swedish", country, "se");
-        let cz = getLanguageFlag("czech", country, "cz");
-        let nl = getLanguageFlag("netherlands", country, "nl");
-        let jp = getLanguageFlag("japan", country, "jp");
-
-        let moderators = [
-            {"id": 784    , "username": "mlopezviedma"   , "country": ["ar"] , "languages": [es, en]} ,
-            {"id": 781    , "username": "crodgers"       , "country": ["us"] , "languages": [en]} ,
-            {"id": 69627  , "username": "xhu98"          , "country": ["us"] , "languages": [cn, en]} ,
-            {"id": 4      , "username": "matburt"        , "country": ["us"] , "languages": [en]} ,
-            {"id": 1      , "username": "anoek"          , "country": ["us"] , "languages": [en]} ,
-            {"id": 52     , "username": "trohde"         , "country": ["de"] , "languages": [de, en]} ,
-            {"id": 64817  , "username": "mark5000"       , "country": ["us"] , "languages": [en]} ,
-            {"id": 66091  , "username": "Revar Isavé"    , "country": ["de"] , "languages": [de, gb]} ,
-            {"id": 441    , "username": "VincentCB"      , "country": ["ca"] , "languages": [en, fr]} ,
-            {"id": 55415  , "username": "entrpy"         , "country": ["se"] , "languages": [se, en]} ,
-            {"id": 360861 , "username": "AdamR"          , "country": ["cz"] , "languages": [cz, en]} ,
-            {"id": 299041 , "username": "Razza99"        , "country": ["gb"] , "languages": [en]} ,
-            {"id": 412892 , "username": "Eugene"         , "country": ["au"] , "languages": [en]} ,
-            {"id": 445315 , "username": "BHydden"        , "country": ["au"] , "languages": [en]} ,
-            {"id": 391401 , "username": "Conrad Melville", "country": ["us"] , "languages": [en]} ,
-            {"id": 449941 , "username": "flovo"          , "country": ["eu"] , "languages": [de, en]} ,
-            {"id": 209826 , "username": "Vsotvep"        , "country": ["nl"] , "languages": [nl, en, jp]} ,
-            {"id": 683917 , "username": "RubyMineshaft"  , "country": ["us"] , "languages": [en, cn]} ,
+        const moderators = [
+            { id: 784, country: ["ar"], languages: [es, en] }, //mlopezviedma
+            { id: 69627, country: ["us"], languages: [cn, en] }, //xhu98
+            { id: 4, country: ["us"], languages: [en] }, //matburt
+            { id: 1, country: ["us"], languages: [en] }, //anoek
+            { id: 52, country: ["de"], languages: [de, en] }, //trohde
+            { id: 64817, country: ["us"], languages: [en] }, //mark5000
+            { id: 441, country: ["ca"], languages: [en, fr] }, //VincentCB
+            { id: 55415, country: ["se"], languages: [se, en] }, //entrpy
+            { id: 360861, country: ["cz"], languages: [cz, en] }, //AdamR
+            { id: 299041, country: ["gb"], languages: [en] }, //Razza99
+            { id: 412892, country: ["au"], languages: [en] }, //Eugene
+            { id: 445315, country: ["au"], languages: [en] }, //BHydden
+            { id: 449941, country: ["eu"], languages: [de, en] }, //flovo
+            { id: 683917, country: ["us"], languages: [en, cn] }, //RubyMineshaft
+            { id: 427361, country: ["ie"], languages: [en] }, //shinuito
+            { id: 695886, country: ["de"], languages: [de, en] }, //KAOSkonfused
+            { id: 483146, country: ["gb"], languages: [en, fr] }, //teapoweredrobot
+            { id: 76618, country: ["us"], languages: [en] }, //yebellz
+            { id: 52288, country: ["se"], languages: [se, en] }, //antonTobi
+            { id: 209826, country: ["nl"], languages: [nl, gb, jp] }, //Vsotvep
+            { id: 85719, country: ["fi"], languages: [fi, gb] }, //KoBa
+            { id: 309835, country: ["us"], languages: [en] }, //Feijoa
         ];
-        let developers = [
-            {"id": 4, "username": "matburt", "country": ["us"], "languages": [en]},
-            {"id": 1, "username": "anoek", "country": ["us"], "languages": [en]},
+        const developers = [
+            { id: 648853, username: "GreenAsJade", country: ["au"], languages: [en] },
+            { id: 1, username: "anoek", country: ["us"], languages: [en] },
         ];
 
         shuffleArray(moderators);
         shuffleArray(developers);
 
-
         return (
-            <div id='Team' className="container page-width">
+            <div id="Team" className="container page-width">
                 <h2>{_("Team")}</h2>
-                <div style={{display: "inline-block", textAlign: "justify"}}>
-                    {_('Online-Go.com is maintained by a small handful of dedicated volunteers, drop them a "Thank You!" message sometime!')}
+                <div style={{ display: "inline-block", textAlign: "justify" }}>
+                    {_(
+                        'Online-Go.com is maintained by a small handful of dedicated volunteers, drop them a "Thank You!" message sometime!',
+                    )}
                 </div>
-                <div className="row" style={{paddingLeft: "2em"}}>
+                <div className="row" style={{ paddingLeft: "2em" }}>
                     <div className="col-sm-6">
                         <h3>{_("Moderators")}</h3>
-                        {moderators.map((u, idx) => (
-                            <div key={u.id} >
-                                <span className='flags'>
-                                    {u.country.map((c, idx) => (<Flag key={c} country={c}/>))}
+                        {moderators.map((u) => (
+                            <div key={u.id}>
+                                <span className="flags">
+                                    {u.country.map((c) => (
+                                        <Flag key={c} country={c} />
+                                    ))}
                                 </span>
-                                <span style={{display: "inline-block", width: "9em"}}>
-                                    <Player user={u} />
+                                <span style={{ display: "inline-block", width: "10em" }}>
+                                    <Player user={Object.assign(u, { country: u.country[0] })} />
                                 </span>
-                                {_("Languages")}: {u.languages.map((c, idx) => (<span key={c} ><Flag country={c}/></span>) )}
+                                {_("Languages")}:{" "}
+                                {u.languages.map((c) => (
+                                    <span key={c}>
+                                        <Flag country={c} />
+                                    </span>
+                                ))}
                             </div>
                         ))}
                     </div>
                     <div className="col-sm-6">
                         <h3>{_("Lead Developers")}</h3>
-                        {developers.map((u, idx) => (
+                        {developers.map((u) => (
                             <div key={u.id}>
-                                <span className='flags'>
-                                    {u.country.map((c, idx) => (<span key={c} ><Flag country={c}/></span>) )}
+                                <span className="flags">
+                                    {u.country.map((c) => (
+                                        <span key={c}>
+                                            <Flag country={c} />
+                                        </span>
+                                    ))}
                                 </span>
-                                <span style={{display: "inline-block", width: "9em"}}>
-                                    <Player user={u} />
+                                <span style={{ display: "inline-block", width: "9em" }}>
+                                    <Player user={Object.assign(u, { country: u.country[0] })} />
                                 </span>
-                                {_("Languages")}: {u.languages.map((c, idx) => (<span key={c} ><Flag country={c}/></span>))}
+                                {_("Languages")}:{" "}
+                                {u.languages.map((c) => (
+                                    <span key={c}>
+                                        <Flag country={c} />
+                                    </span>
+                                ))}
                             </div>
                         ))}
 
                         <h3>{_("Github Contributors")}</h3>
-                        {this.state.contributors.map((u, idx) => (
+                        {this.state.contributors.map((u: any, idx: number) => (
                             <div key={idx}>
-                                <span className='flags'>
-                                    <img src={u.avatar_url} width={15} height={15}/>
+                                <span className="flags">
+                                    <img src={u.avatar_url} width={15} height={15} />
                                 </span>
-                                <span className='name'>
-                                    <a href={u.html_url || ('https://github.com/' + u.name)}>{u.login || u.name}</a>
+                                <span className="name">
+                                    <a href={u.html_url || "https://github.com/" + u.name}>
+                                        {u.login || u.name}
+                                    </a>
                                 </span>
                             </div>
                         ))}
 
                         <h3>{_("Security Vulnerability Reporting")}</h3>
                         <div>
-                            <span className='flags'>
-                                <Flag country='us'/>
+                            <span className="flags">
+                                <Flag country="us" />
                             </span>
-                            <span className='name'>
-                                <a href='https://online-go.com/user/view/740904/A-i'>Aiden</a>
+                            <span className="name">
+                                <a href="https://online-go.com/user/view/740904/A-i">Aiden</a>
                             </span>
                         </div>
 
                         <h3>{pgettext("Sound and graphics files", "Assets")}</h3>
                         <div>
-                            <span className='flags'>
-                                <Flag country='gb'/>
+                            <span className="flags">
+                                <Flag country="gb" />
                             </span>
-                            <span className='name'>
-                                <a href='https://voicebunny.com/voice-actor/claire-natalie-TK5C1B8'>Claire Natalie</a>
+                            <span className="name">
+                                <a href="https://voicebunny.com/voice-actor/claire-natalie-TK5C1B8">
+                                    Claire Natalie
+                                </a>
                             </span>
-                            <span className='description'>
-                                - GB English voiceover
-                            </span>
+                            <span className="description">- GB English voiceover</span>
                         </div>
 
                         <div>
-                            <span className='flags'>
-                                <Flag country='us'/>
+                            <span className="flags">
+                                <Flag country="us" />
                             </span>
-                            <span className='name'>
-                                <a href='https://freesound.org/people/rhodesmas/'>Andy Rhode</a>
+                            <span className="name">
+                                <a href="https://freesound.org/people/rhodesmas/">Andy Rhode</a>
                             </span>
-                            <span className='description'>
-                                - Effects
-                            </span>
+                            <span className="description">- Effects</span>
                         </div>
 
                         <div>
-                            <span className='flags'>
-                                <Flag country='us'/>
+                            <span className="flags">
+                                <Flag country="us" />
                             </span>
-                            <span className='name'>
-                                <a href='https://freesound.org/people/tim.kahn/'>Amy Gedgaudas</a>
+                            <span className="name">
+                                <a href="https://freesound.org/people/tim.kahn/">Amy Gedgaudas</a>
                             </span>
-                            <span className='description'>
-                                - 2013 English 10 second count down
-                            </span>
+                            <span className="description">- 2013 English 10 second count down</span>
                         </div>
 
                         <div>
-                            <span className='flags'>
-                                <Flag country='us'/>
+                            <span className="flags">
+                                <Flag country="us" />
                             </span>
-                            <span className='name'>
-                                <a href='https://freesound.org/people/acclivity/'>acclivity</a>
+                            <span className="name">
+                                <a href="https://freesound.org/people/acclivity/">acclivity</a>
                             </span>
-                            <span className='description'>
-                                - Effects
-                            </span>
+                            <span className="description">- Effects</span>
                         </div>
 
                         <div>
-                            <span className='flags'>
-                                <Flag country='us'/>
+                            <span className="flags">
+                                <Flag country="us" />
                             </span>
-                            <span className='name'>
-                                <a href='https://freesound.org/people/JonnyRuss01/'>JonnyRuss01</a>
+                            <span className="name">
+                                <a href="https://freesound.org/people/JonnyRuss01/">JonnyRuss01</a>
                             </span>
-                            <span className='description'>
-                                - Effects
-                            </span>
-                        </div>
-
-
-                        <div>
-                            <span className='flags'>
-                                <Flag country='us'/>
-                            </span>
-                            <span className='name'>
-                                <a href='https://freesound.org/people/leviclaassen/'>leviclaassen</a>
-                            </span>
-                            <span className='description'>
-                                - Effects
-                            </span>
+                            <span className="description">- Effects</span>
                         </div>
 
                         <div>
-                            <span className='flags'>
-                                <Flag country='us'/>
+                            <span className="flags">
+                                <Flag country="us" />
                             </span>
-                            <span className='name'>
-                                <a href='http://seamless-pixels.blogspot.com/'>Seamless Texture Library</a>
+                            <span className="name">
+                                <a href="https://freesound.org/people/leviclaassen/">
+                                    leviclaassen
+                                </a>
                             </span>
-                            <span className='description'>
+                            <span className="description">- Effects</span>
+                        </div>
+
+                        <div>
+                            <span className="flags">
+                                <Flag country="us" />
+                            </span>
+                            <span className="name">
+                                <a href="http://seamless-pixels.blogspot.com/">
+                                    Seamless Texture Library
+                                </a>
+                            </span>
+                            <span className="description">
                                 - Marble, Granite, and Rust Goban Textures
                             </span>
                         </div>
 
                         <div>
-                            <span className='flags'>
-                                <Flag country='fr'/>
+                            <span className="flags">
+                                <Flag country="fr" />
                             </span>
-                            <span className='name'>
-                                <a href='https://github.com/ornicar/lila/tree/master/public/sound'>Lichess - Effects</a>
+                            <span className="name">
+                                <a href="https://github.com/ornicar/lila/tree/master/public/sound">
+                                    Lichess - Effects
+                                </a>
                             </span>
                         </div>
 
                         <div>
-                            <span className='flags'>
-                                <Flag country='ar'/>
+                            <span className="flags">
+                                <Flag country="ar" />
                             </span>
-                            <span className='name'>
-                                <a href='https://online-go.com/player/784/mlopezviedma'>Mariano López Minnucci</a>
+                            <span className="name">
+                                <a href="https://online-go.com/player/784/mlopezviedma">
+                                    Mariano López Minnucci
+                                </a>
                             </span>
                         </div>
                         <div>
-                            <span className='flags'>
-                                <Flag country='us'/>
+                            <span className="flags">
+                                <Flag country="us" />
                             </span>
-                            <span className='name'>
-                                <a href='https://online-go.com/player/1/anoek'>Akita Noek</a>
+                            <span className="name">
+                                <a href="https://online-go.com/player/1/anoek">Akita Noek</a>
                             </span>
                         </div>
                     </div>

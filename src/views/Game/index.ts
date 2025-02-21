@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -15,4 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+export * from "./AIReviewChart";
+export * from "./AIReview";
 export * from "./Game";
+export * from "./GameChat";
+export * from "./GameHooks";
+export * from "./GameTimings";
+export * from "./game_control";
+export * from "./goban_context";
+export * from "./util";
+export * from "./GameLog";

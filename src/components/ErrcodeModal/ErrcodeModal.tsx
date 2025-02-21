@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,57 +16,48 @@
  */
 
 import * as React from "react";
-import {_, pgettext, interpolate} from 'translate';
-import {Modal, openModal} from "Modal";
-import {Errcode} from 'Errcode';
-import { MessageId } from 'messages';
+import { _ } from "@/lib/translate";
+import { Modal, openModal } from "@/components/Modal";
+import { Errcode } from "@/components/Errcode";
+import { MessageId } from "@/lib/messages";
 
-
-declare let swal;
-
-interface Events {
-}
+interface Events {}
 
 interface ErrcodeModalProperties {
     message_id: MessageId;
 }
 
 export class ErrcodeModal extends Modal<Events, ErrcodeModalProperties, any> {
-    constructor(props) {
+    constructor(props: ErrcodeModalProperties) {
         super(props);
     }
 
     render() {
-        let header = null;
-        let body = null;
+        let header: React.ReactElement | null = null;
+        let body: React.ReactElement | null = null;
 
         switch (this.props.message_id) {
-            case 'ai_review_queue_full':
-                header = <i className='fa fa-clock-o' />;
+            case "ai_review_queue_full":
+                header = <i className="fa fa-clock-o" />;
                 break;
         }
 
         body = <Errcode message_id={this.props.message_id} />;
 
         return (
-          <div className="Modal ErrcodeModal" ref="modal">
-              {header &&
-                  <div className="header">
-                      {header}
-                  </div>
-              }
-              <div className="body">
-                  {body}
-              </div>
-              <div className="buttons">
-                  <button className='primary' onClick={this.close}>{_("OK")}</button>
-              </div>
-          </div>
+            <div className="Modal ErrcodeModal">
+                {header && <div className="header">{header}</div>}
+                <div className="body">{body}</div>
+                <div className="buttons">
+                    <button className="primary" onClick={this.close}>
+                        {_("OK")}
+                    </button>
+                </div>
+            </div>
         );
     }
 }
 
-
-export function errcodeAlerter(errobj:{errcode: MessageId}):void {
-    openModal(<ErrcodeModal message_id={errobj.errcode} />);
+export function errcodeAlerter(err_obj: { errcode: MessageId }): void {
+    openModal(<ErrcodeModal message_id={err_obj.errcode} />);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,17 +16,17 @@
  */
 
 import * as React from "react";
-import * as preferences from "preferences";
+import * as preferences from "@/lib/preferences";
 
 let binding_id = 0;
 
-class Binding {
-    id;
-    shortcut;
-    fn;
-    priority;
+export class Binding {
+    id: number;
+    shortcut: string;
+    fn: (evt: any) => void;
+    priority: number;
 
-    constructor(shortcut, fn, priority) {
+    constructor(shortcut: string, fn: (evt: any) => void, priority: number) {
         this.id = ++binding_id;
         this.shortcut = shortcut;
         this.fn = fn;
@@ -40,33 +40,18 @@ interface KBProps {
     priority?: number;
 }
 
-export class KBShortcut extends React.Component<KBProps, any> {
-    binding: Binding;
+export function KBShortcut({ shortcut, action, priority }: KBProps) {
+    React.useEffect(() => {
+        const binding = kb_bind(shortcut, action, priority || 0);
+        return () => {
+            kb_unbind(binding);
+        };
+    }, [shortcut, action, priority]);
 
-    constructor(props) {
-        super(props);
-    }
-    shouldComponentUpdate() {
-        return false;
-    }
-    UNSAFE_componentWillReceiveProps(next_props) {
-        kb_unbind(this.binding);
-        this.binding = kb_bind(next_props.shortcut, next_props.action, next_props.priority || 0);
-    }
-    componentDidMount() {
-        this.binding = kb_bind(this.props.shortcut, this.props.action, this.props.priority || 0);
-    }
-    componentWillUnmount() {
-        kb_unbind(this.binding);
-    }
-    render() {
-        return null;
-    }
+    return null;
 }
 
-
-
-let keymap = {
+const key_map = {
     27: "esc",
     9: "tab",
     8: "del",
@@ -98,7 +83,7 @@ let keymap = {
     163: "german-pound", // german pound key, the ` key is a "dead key"
 };
 
-let input_enabled_keys = {
+const input_enabled_keys = {
     27: "esc",
     112: "f1",
     113: "f2",
@@ -112,21 +97,13 @@ let input_enabled_keys = {
     121: "f10",
 };
 
+const bound_shortcuts: { [shortcut: string]: Binding[] } = {};
 
-let modifiers = {
-    "shift": "shift",
-    "alt": "alt",
-    "meta": "meta",
-    "ctrl": "ctrl"
-};
-
-let bound_shortcuts = {string: Binding};
-
-function sanitize_shortcut(shortcut) {
-    let shift = shortcut.indexOf("shift-") >= 0;
-    let ctrl  = shortcut.indexOf("ctrl-") >= 0;
-    let alt   = shortcut.indexOf("alt-") >= 0;
-    let meta  = shortcut.indexOf("meta-") >= 0;
+function sanitize_shortcut(shortcut: string) {
+    const shift = shortcut.indexOf("shift-") >= 0;
+    const ctrl = shortcut.indexOf("ctrl-") >= 0;
+    const alt = shortcut.indexOf("alt-") >= 0;
+    const meta = shortcut.indexOf("meta-") >= 0;
 
     shortcut = shortcut.toLowerCase();
     shortcut = shortcut.replace(/([^+-])[+]/g, "$1-");
@@ -144,104 +121,115 @@ function sanitize_shortcut(shortcut) {
     shortcut = shortcut.replace("shift-", "");
     shortcut = shortcut.replace("ctrl-", "");
     shortcut = shortcut.replace("alt-", "");
-    shortcut = (shift ? "shift-" : "") + (alt ? "alt-" : "") + (ctrl ? "ctrl-" : "") + (meta ? "meta-" : "") + shortcut;
+    shortcut =
+        (shift ? "shift-" : "") +
+        (alt ? "alt-" : "") +
+        (ctrl ? "ctrl-" : "") +
+        (meta ? "meta-" : "") +
+        shortcut;
 
     return shortcut;
 }
 
-
-
-$(() => {
-    $(document).on("keydown", (e) => {
-        try {
-            if (document.activeElement.tagName === "INPUT" ||
-                document.activeElement.tagName === "TEXTAREA" ||
-                document.activeElement.tagName === "SELECT" ||
-                document.activeElement.className === "qc-option") {
-
-                if (!(e.keyCode in input_enabled_keys)) {
-                    return true;
-                }
-            }
-        } catch (e) {
-            /* ie 11 throws this */
-            console.warn(e);
-        }
-
-        let shortcut = "";
-        if (e.shiftKey) { shortcut += "shift-"; }
-        if (e.ctrlKey)  { shortcut += "ctrl-";  }
-        if (e.altKey)   { shortcut += "alt-";   }
-        if (e.metaKey)  { shortcut += "meta-";  }
-
-
-        if (e.keyCode in keymap) {
-            shortcut += keymap[e.keyCode];
-        } else {
-            shortcut += String.fromCharCode(e.keyCode);
-        }
-        shortcut = sanitize_shortcut(shortcut);
-
-        if (!preferences.get('function-keys-enabled')) {
-            if (/f[0-9]/.test(shortcut)) {
+const handleKeyDown = (e: KeyboardEvent) => {
+    try {
+        if (
+            document.activeElement?.tagName === "INPUT" ||
+            document.activeElement?.tagName === "TEXTAREA" ||
+            document.activeElement?.tagName === "SELECT" ||
+            document.activeElement?.className === "qc-option"
+        ) {
+            if (!(e.keyCode in input_enabled_keys)) {
                 return true;
             }
         }
+    } catch (err) {
+        console.warn(err);
+    }
 
-        if (shortcut in bound_shortcuts && bound_shortcuts[shortcut].length > 0) {
-            let binding = bound_shortcuts[shortcut][bound_shortcuts[shortcut].length - 1];
+    let shortcut = "";
+    if (e.shiftKey) {
+        shortcut += "shift-";
+    }
+    if (e.ctrlKey) {
+        shortcut += "ctrl-";
+    }
+    if (e.altKey) {
+        shortcut += "alt-";
+    }
+    if (e.metaKey) {
+        shortcut += "meta-";
+    }
 
-            binding.fn(e);
+    if (e.keyCode in key_map) {
+        shortcut += key_map[e.keyCode as keyof typeof key_map];
+    } else {
+        shortcut += String.fromCharCode(e.keyCode);
+    }
+    shortcut = sanitize_shortcut(shortcut);
 
-            if (shortcut === "esc") {
-                /* Allow escape through to other handlers, such as SWAL to close modals */
-                return true;
-            }
-
-            if (shortcut === "ctrl-c" || shortcut === "meta-c") {
-                /* Allow copy text on Ctrl+C in modal */
-                return true;
-            }
-
-            if (e.stopPropagation) {
-                e.stopPropagation();
-            }
-            if (e.preventDefault) {
-                e.preventDefault();
-            }
-            return false;
+    if (!preferences.get("function-keys-enabled")) {
+        if (/f[0-9]/.test(shortcut)) {
+            return true;
         }
-        return true;
+    }
+
+    if (shortcut in bound_shortcuts && bound_shortcuts[shortcut].length > 0) {
+        const binding = bound_shortcuts[shortcut][bound_shortcuts[shortcut].length - 1];
+
+        binding.fn(e);
+
+        if (shortcut === "esc") {
+            /* Allow escape through to other handlers, such as SWAL to close modals */
+            return true;
+        }
+
+        if (shortcut === "ctrl-c" || shortcut === "meta-c") {
+            /* Allow copy text on Ctrl+C in modal */
+            return true;
+        }
+
+        if (e.stopPropagation) {
+            e.stopPropagation();
+        }
+        if (e.preventDefault) {
+            e.preventDefault();
+        }
+        return false;
+    }
+    return true;
+};
+
+// Initialize global keyboard shortcuts when the DOM is ready
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+        document.addEventListener("keydown", handleKeyDown);
     });
-});
+} else {
+    document.addEventListener("keydown", handleKeyDown);
+}
 
-
-
-export function kb_bind(shortcut, fn, priority) {
+export function kb_bind(shortcut: string, fn: () => void, priority: number): Binding {
     if (!priority) {
         priority = 0;
     }
     shortcut = sanitize_shortcut(shortcut);
-    //console.log("KB Binding", shortcut);
-    let b = new Binding(shortcut, fn, priority);
+    const b = new Binding(shortcut, fn, priority);
     if (!(shortcut in bound_shortcuts)) {
         bound_shortcuts[shortcut] = [];
     }
 
     bound_shortcuts[shortcut].push(b);
-    bound_shortcuts[shortcut].sort(
-        (a, b) => {
-            if (a.priority === b.priority) {
-                return a.id - b.id;
-            }
-            return a.priority - b.priority;
+    bound_shortcuts[shortcut].sort((a: Binding, b: Binding) => {
+        if (a.priority === b.priority) {
+            return a.id - b.id;
         }
-    );
+        return a.priority - b.priority;
+    });
     return b;
 }
 
-export function kb_unbind(b) {
-    //console.log("KB Unbinding", b.shortcut);
+export function kb_unbind(b: Binding) {
     for (let i = 0; i < bound_shortcuts[b.shortcut].length; ++i) {
         if (bound_shortcuts[b.shortcut][i].id === b.id) {
             bound_shortcuts[b.shortcut].splice(i, 1);

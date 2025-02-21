@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -27,5 +27,28 @@ class Device {
     }
 }
 
-
 export default new Device();
+
+let em10_width: number | undefined;
+let document_body_width = window.innerWidth || document.body.clientWidth;
+// on resize, we need to recompute the display width
+window.addEventListener("resize", () => {
+    //document_body_width = document.body.clientWidth;
+    document_body_width = window.innerWidth || document.body.clientWidth;
+    em10_width = undefined;
+    if (!em10_width) {
+        em10_width = parseInt(getComputedStyle(document.documentElement).fontSize, 10) * 10;
+    }
+});
+
+export function getWindowWidth(): number {
+    return document_body_width;
+    //return $(window).width() || document_body_width;
+}
+
+export function getEm10Width(): number {
+    if (!em10_width) {
+        em10_width = parseInt(getComputedStyle(document.documentElement).fontSize, 10) * 10;
+    }
+    return em10_width;
+}

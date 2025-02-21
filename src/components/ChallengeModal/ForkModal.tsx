@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -16,77 +16,71 @@
  */
 
 import * as React from "react";
-import * as data from "data";
-import {_, pgettext, interpolate} from "translate";
-import {Modal, openModal} from "Modal";
-import {Goban} from "goban";
-import {PlayerAutocomplete} from "PlayerAutocomplete";
-import {MiniGoban} from "MiniGoban";
-import {challenge} from "ChallengeModal";
-
-interface Events {
-}
+import * as data from "@/lib/data";
+import { _ } from "@/lib/translate";
+import { GobanRenderer } from "goban";
+import { PlayerAutocomplete } from "@/components/PlayerAutocomplete";
+import { MiniGoban } from "@/components/MiniGoban";
+import { challenge } from "@/components/ChallengeModal";
+import { PlayerCacheEntry } from "@/lib/player_cache";
+import { ModalContext } from "@/components/ModalProvider";
 
 interface ForkModalProperties {
-    goban: Goban;
+    goban: GobanRenderer;
 }
 
-export class ForkModal extends Modal<Events, ForkModalProperties, any> {
-    constructor(props) {
-        super(props);
+export function ForkModal({ goban }: ForkModalProperties): React.ReactElement {
+    const [currPlayer, setCurrPlayer] = React.useState(null as PlayerCacheEntry | null);
+    const { hideModal } = React.useContext(ModalContext);
 
+    const forkPreview = {
+        moves: [],
+        initial_state: goban.engine.computeInitialStateForForkedGame(),
+        initial_player: goban.engine.colorToMove(),
+        width: goban.engine.width,
+        height: goban.engine.height,
+        rules: goban.engine.rules,
+        handicap: goban.engine.handicap,
+        komi: goban.engine.komi,
+        move_number: goban.engine.getMoveNumber(),
+        game_name: goban.engine.name,
+    };
 
-        let goban = this.props.goban;
-        this.state = {
-            player: null,
-            fork_preview: {
-                //"moves": goban.engine.cur_move.getMoveStringToThisPoint(),
-                //"initial_state": goban.engine.initial_state,
-                //"initial_player": goban.engine.config.initial_player,
-                "moves": [],
-                "initial_state": goban.engine.computeInitialStateForForkedGame(),
-                "initial_player": goban.engine.colorToMove(),
-                "width": goban.engine.width,
-                "height": goban.engine.height,
-                "rules": goban.engine.rules,
-                "handicap": goban.engine.handicap,
-                "komi": goban.engine.komi,
-                "move_number": goban.engine.getMoveNumber(),
-                "game_name": goban.engine.name,
-            }
-        };
-    }
+    const openChallengeModal = () => {
+        hideModal();
+        if (currPlayer) {
+            challenge(currPlayer.id, forkPreview);
+        }
+    };
 
-    openChallengeModal = () => {
-        this.close();
-        challenge(this.state.player.id, this.state.fork_preview);
-    }
+    const setPlayer = (player: PlayerCacheEntry | null) => {
+        setCurrPlayer(player);
+    };
 
-    setPlayer = (player) => {
-        this.setState({player: player});
-    }
-
-    render() {
-
-
-        return (
-          <div className="Modal ForkModal" ref="modal">
-              <div className="header space-around">
-                  <h2>{_("Player to challenge")}:</h2> <PlayerAutocomplete onComplete={this.setPlayer} />
-              </div>
-              <div className="body space-around">
-                  <MiniGoban id={null} black={null} white={null} json={this.state.fork_preview} noLink />
-              </div>
-              <div className="buttons">
-                  <button onClick={this.close}>{_("Cancel")}</button>
-                  <button className="primary" disabled={this.state.player == null || this.state.player.id === data.get("user").id} onClick={this.openChallengeModal}>{_("Game settings")} &rarr;</button>
-              </div>
-          </div>
-        );
-    }
-}
-
-
-export function openForkModal(goban) {
-    return openModal(<ForkModal goban={goban} />);
+    return (
+        <div className="Modal ForkModal">
+            <div className="header space-around">
+                <h2>{_("Player to challenge")}:</h2> <PlayerAutocomplete onComplete={setPlayer} />
+            </div>
+            <div className="body space-around">
+                <MiniGoban
+                    game_id={0}
+                    black={undefined}
+                    white={undefined}
+                    json={forkPreview}
+                    noLink
+                />
+            </div>
+            <div className="buttons">
+                <button onClick={hideModal}>{_("Cancel")}</button>
+                <button
+                    className="primary"
+                    disabled={currPlayer == null || currPlayer.id === data.get("user").id}
+                    onClick={openChallengeModal}
+                >
+                    {_("Game settings")} &rarr;
+                </button>
+            </div>
+        </div>
+    );
 }

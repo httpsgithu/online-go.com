@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2020  Online-Go.com
+ * Copyright (C)  Online-Go.com
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -14,13 +14,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-
 .LibraryPlayer {
-
     .breadcrumbs {
         display: flex;
-
         padding: 1rem;
         font-size: font-size-big;
 
@@ -28,6 +24,7 @@
             cursor: pointer;
             padding-left: 0.5rem;
         }
+
         .breadcrumb:hover {
             text-decoration: underline;
         }
@@ -36,8 +33,8 @@
     .collections {
         cursor: pointer;
         margin-bottom: 1rem;
-
     }
+
     .games {
     }
 
@@ -49,41 +46,73 @@
         display: table;
     }
 
-    .collection-entry, .game-entry {
+    .collection-entry, .game-entry, .sort-header {
         display: table-row;
 
         span {
             display: table-cell;
-            padding-right: 1.0rem;
+            padding-right: 1rem;
         }
     }
+
+    .sort-header {
+        font-weight: 700;
+    }
+
+    .sortable {
+        cursor: pointer;
+    }
+
+    .sortable:after {
+        display: inline-block;
+        width: 0.8rem;
+        font-size: 0.7rem;
+        margin-left: 0.2rem;
+        margin-bottom: 0.2rem;
+        font-family: 'FontAwesome';
+        content: ' ';
+    }
+
+    .sortable.sorted-asc:after {
+        content: fa-sort-asc-content;
+    }
+
+    .sortable.sorted-desc:after {
+        content: fa-sort-desc-content;
+    }
+
     .private-lock {
-        //cursor: pointer;
+        // cursor: pointer;
         width: 2rem;
         text-align: center;
     }
+
     .fa-lock, .fa-unlock {
         cursor: pointer;
     }
+
     .collection-entry:hover {
         cursor: pointer;
         text-decoration: underline;
     }
 
-
-    .date {
+    .date-column {
         min-width: 10rem;
     }
+
     .collection {
         padding-left: 2rem;
     }
-    .collection, .name {
+
+    .collection, .name-column {
         min-width: 12rem;
     }
-    .black, .white {
+
+    .black-column, .white-column {
         min-width: 6rem;
     }
-    .outcome {
+
+    .outcome-column {
         min-width: 5rem;
     }
 
@@ -96,11 +125,14 @@
             width: 100%;
             margin: 0.5rem 1rem 0.5rem 0;
         }
+
         label {
             user-select: none;
         }
+
         .name-checkbox {
             margin-right: 1rem;
+
             i {
                 margin: 0 0.5rem;
             }
